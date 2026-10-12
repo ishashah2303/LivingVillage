@@ -4,8 +4,9 @@
  * nobody stays stuck, the guard does its job, stale planner commands are refused.
  */
 import { describe, expect, it } from 'vitest';
+import { BOIDS, Flock } from './boids';
 import { LocalPlanner } from './localPlanner';
-import { dist } from './math';
+import { Rng, dist } from './math';
 import { ruleBasedPlan } from './planner';
 import { spotByCmd } from './layout';
 import { DT, Simulation } from './simulation';
@@ -108,6 +109,53 @@ describe('boids', () => {
       for (let j = i + 1; j < B.length; j++) minPair = Math.min(minPair, Math.hypot(B[i].x - B[j].x, B[i].y - B[j].y, B[i].z - B[j].z));
     expect(closest).toBeGreaterThan(4);
     expect(minPair).toBeGreaterThan(0.2);
+  });
+
+  it('the spatial grid finds the same neighbors as the all-pairs scan', () => {
+    // Settle a dense flock, then take one step from the exact same state both ways.
+    const ctx = { time: 0, hour: 12, fires: [] };
+    const brute = new Flock(new Rng(3), 400);
+    brute.grid = false;
+    for (let i = 0; i < 90; i++) brute.step(DT, ((ctx.time += DT), ctx), new Rng(1));
+    const grid = new Flock(new Rng(3), 0);
+    grid.birds = brute.birds.map(b => ({ ...b }));
+    grid.step(DT, ctx, new Rng(1));
+    brute.step(DT, ctx, new Rng(1));
+    let worst = 0;
+    for (let k = 0; k < 400; k++) {
+      const g = grid.birds[k], b = brute.birds[k];
+      worst = Math.max(worst, Math.hypot(g.x - b.x, g.y - b.y, g.z - b.z, g.vx - b.vx, g.vy - b.vy, g.vz - b.vz));
+    }
+    expect(worst).toBeLessThan(1e-9); // only float summation order differs
+    expect(grid.pairChecks).toBeLessThan(brute.pairChecks / 2);
+  });
+});
+
+describe('stress test', () => {
+  it('the flock resizes up to the cap and back down', async () => {
+    const sim = await workingVillage();
+    sim.setBirdCount(1000);
+    run(sim, 2);
+    expect(sim.flock.birds.length).toBe(1000);
+    expect(sim.flock.birds.every(b => Number.isFinite(b.x + b.y + b.z))).toBe(true);
+    sim.setBirdCount(99999);
+    expect(sim.flock.birds.length).toBe(BOIDS.maxCount);
+    sim.setBirdCount(30);
+    expect(sim.flock.birds.length).toBe(30);
+  });
+
+  it('a burst of obstacles leaves nobody stuck, and clearing restores the navmesh', async () => {
+    const sim = await workingVillage();
+    const before = sim.nav.obstacleCount;
+    const placed = sim.scatterObstacles(20);
+    expect(placed).toBe(20);
+    expect(sim.nav.obstacleCount).toBe(before + 20);
+    const start = sim.villagers.map(v => ({ ...v.pos }));
+    run(sim, 30);
+    const moved = sim.villagers.filter((v, i) => v.visible && dist(v.pos, start[i]) > 1).length;
+    expect(moved).toBeGreaterThan(0);
+    expect(sim.clearObstacles()).toBe(20);
+    expect(sim.nav.obstacleCount).toBe(before);
   });
 });
 

@@ -4,7 +4,7 @@ import { PlannerClient } from '@/sim/plannerClient';
 import { Simulation } from '@/sim/simulation';
 import Stage from './scene/Stage';
 import { SimContext, labelLayer, useUI, type Tool } from './store';
-import { EventLog, Inspector, PlannerPanel, StatsOverlay, Toolbar, TopBar } from './ui/Panels';
+import { EventLog, Inspector, PerfOverlay, PlannerPanel, StatsOverlay, Toolbar, TopBar } from './ui/Panels';
 
 const KEY_TOOLS: Tool[] = ['select', 'fire', 'rock', 'food', 'well', 'erase'];
 
@@ -67,6 +67,7 @@ export default function VillageApp() {
           <Stage />
           <PlannerPanel />
           <StatsOverlay />
+          <PerfOverlay />
           <div className="overlay help">Drag orbit · right-drag pan · scroll zoom · 1–6 tools · space pause · F follow · N navmesh</div>
         </main>
         <Inspector />

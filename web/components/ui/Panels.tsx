@@ -1,10 +1,11 @@
 'use client';
 import { Fragment } from 'react';
 import { ROLE_LABEL } from '@/sim/agents';
+import { BOIDS } from '@/sim/boids';
 import { activePath, flatten, type Status } from '@/sim/bt';
 import { PLACES } from '@/sim/layout';
 import { ACTIVITY_LABEL, DT } from '@/sim/simulation';
-import { useSim, useTick, useUI, type Tool } from '../store';
+import { framePerf, useSim, useTick, useUI, type Tool } from '../store';
 
 /** Renders `code` spans for text between backticks (log lines and reasons). */
 export function Rich({ text }: { text: string }) {
@@ -87,6 +88,8 @@ export function Toolbar() {
         <span className="ic">▶</span>Demo: stale plan
       </button>
       <div className="sep" />
+      <StressControls />
+      <div className="sep" />
       <h3>Debug overlays</h3>
       {([
         ['navmesh', 'NavMesh (Recast)'],
@@ -101,6 +104,59 @@ export function Toolbar() {
       ))}
       <p className="hint">Pick a tool, then click the map. Every edit rebuilds only the navmesh tiles it touches, and villagers reroute.</p>
     </aside>
+  );
+}
+
+const BIRD_COUNTS = [30, 250, 500, 1000, BOIDS.maxCount];
+
+/** Push the systems past their design load and watch the performance overlay. */
+function StressControls() {
+  const sim = useSim();
+  const refresh = useTick(4);
+  const n = sim.flock.birds.length;
+  return (
+    <>
+      <h3>Stress test</h3>
+      <div className="seg stress" role="group" aria-label="Number of birds">
+        {BIRD_COUNTS.map(c => (
+          <button key={c} aria-pressed={n === c} onClick={() => (sim.setBirdCount(c), refresh())} title={`${c} birds`}>
+            {c >= 1000 ? `${c / 1000}k` : c}
+          </button>
+        ))}
+      </div>
+      <label className="toggle" title="Off: every bird checks every other bird, O(n²)">
+        <input type="checkbox" checked={sim.flock.grid} onChange={() => ((sim.flock.grid = !sim.flock.grid), refresh())} />
+        Boids spatial grid
+      </label>
+      <button className="tool" onClick={() => (sim.scatterObstacles(20), refresh())}>
+        <span className="ic">🪨</span>Drop 20 obstacles
+      </button>
+      <button className="tool" onClick={() => (sim.clearObstacles(), refresh())}>
+        <span className="ic">🧹</span>Clear obstacles
+      </button>
+    </>
+  );
+}
+
+export function PerfOverlay() {
+  const sim = useSim();
+  useTick(4);
+  const { fps, frameMs, worstMs, simMs, calls, triangles } = framePerf;
+  const { brainMs, navMs, boidsMs } = sim.perf;
+  const n = sim.flock.birds.length;
+  const color = fps >= 55 ? 'var(--moss)' : fps >= 30 ? '#d49a2a' : 'var(--ember)';
+  return (
+    <div className="overlay perf">
+      <div>
+        <b className="fps" style={{ color }}>{fps.toFixed(0)} FPS</b> · frame <b>{frameMs.toFixed(1)}</b> ms (worst {worstMs.toFixed(0)}) · sim <b>{simMs.toFixed(1)}</b> ms/frame
+      </div>
+      <div>
+        Per 30 Hz step: brains <b>{brainMs.toFixed(2)}</b> · navmesh + crowd <b>{navMs.toFixed(2)}</b> · boids <b>{boidsMs.toFixed(2)}</b> ms
+      </div>
+      <div>
+        {sim.villagers.length} villagers · {n} birds ({sim.flock.grid ? 'grid' : 'all pairs'}, {n ? Math.round(sim.flock.pairChecks / n) : 0} checks/bird) · {calls} draw calls · {(triangles / 1000).toFixed(0)}k tris
+      </div>
+    </div>
   );
 }
 

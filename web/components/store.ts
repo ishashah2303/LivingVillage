@@ -36,6 +36,9 @@ export const useUI = create<UIState>(set => ({
 
 export const SimContext = createContext<Simulation | null>(null);
 
+/** Render-loop measurements, written by <PerfProbe> inside the canvas and read by the overlay. */
+export const framePerf = { fps: 0, frameMs: 0, worstMs: 0, simMs: 0, calls: 0, triangles: 0 };
+
 /**
  * Stable container for drei <Html> labels. Without it, Html re-creates its React root once R3F
  * connects its event target after mount, which React 19 reports as an unmount-during-render error.

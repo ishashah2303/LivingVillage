@@ -8,7 +8,7 @@ import type { Obstacle } from 'recast-navigation';
 import { bond, createVillagers, say, type Activity, type FleeTarget, type Goal, type Villager } from './agents';
 import type { Status } from './bt';
 import { Flock } from './boids';
-import { HOUSES, PLACES, SAFE_SPOTS, placeName, spotByCmd, type PlaceKey, type SafeSpot } from './layout';
+import { HOUSES, PLACES, SAFE_SPOTS, WORLD, placeName, spotByCmd, type PlaceKey, type SafeSpot } from './layout';
 import { Rng, clamp, dist, distXZ, lerpAngle, type V2 } from './math';
 import { AGENT_RADIUS, NavWorld } from './nav';
 import { allSpots, inDanger, validateCommand, type Command, type GateWorld, type PlanResult, type SituationReport } from './planner';
@@ -56,6 +56,15 @@ export interface SimStats {
   lastTimeToSafety: number | null;
 }
 
+/** Smoothed cost of one fixed step, in milliseconds, split by system (for the performance overlay). */
+export interface StepPerf {
+  brainMs: number;
+  navMs: number;
+  boidsMs: number;
+}
+
+const ema = (avg: number, x: number) => avg + (x - avg) * 0.1;
+
 const PLACE_KEY_BY_NAME = Object.fromEntries(Object.values(PLACES).map(p => [p.name, p.key])) as Record<string, PlaceKey>;
 const now = () => performance.now();
 
@@ -78,6 +87,7 @@ export class Simulation implements GateWorld {
   planner: PlannerTransport | null = null;
   log: LogEntry[] = [];
   stats: SimStats = { goalSwitches: 0, stuckRecoveries: 0, accepted: 0, rejected: 0, rebuilds: 0, lastRebuildMs: 0, lastTimeToSafety: null };
+  perf: StepPerf = { brainMs: 0, navMs: 0, boidsMs: 0 };
   /** 0..1 progress between the last two fixed steps, for render interpolation. */
   alpha = 0;
   private acc = 0;
@@ -129,6 +139,7 @@ export class Simulation implements GateWorld {
     if (this.shortage > 0 && (this.shortage -= dt) <= 0) this.setShortage(false);
     this.updateFires(dt);
 
+    const t0 = now();
     for (const v of this.villagers) {
       this.updateNeeds(v, dt);
       if ((v.thinkIn -= dt) <= 0) {
@@ -140,10 +151,16 @@ export class Simulation implements GateWorld {
       if (v.sayT > 0) v.sayT -= dt;
     }
 
+    const t1 = now();
     if (this.nav.flush()) this.onNavRebuilt();
     this.nav.step(dt);
     for (const v of this.villagers) this.syncAgent(v, dt);
+    const t2 = now();
     this.flock.step(dt, { time: this.simTime, hour: this.hour, fires: this.aliveFires() }, this.rng);
+    const t3 = now();
+    this.perf.brainMs = ema(this.perf.brainMs, t1 - t0);
+    this.perf.navMs = ema(this.perf.navMs, t2 - t1);
+    this.perf.boidsMs = ema(this.perf.boidsMs, t3 - t2);
   }
 
   /* ---------------- perception & cognition ---------------- */
@@ -687,7 +704,7 @@ export class Simulation implements GateWorld {
     return this.addBlocking(p, 'well', 1.1, '⛲ A new well was built; it becomes an evening gathering spot');
   }
 
-  private addBlocking(p: V2, kind: 'rock' | 'well', r: number, msg: string) {
+  private addBlocking(p: V2, kind: 'rock' | 'well', r: number, msg: string, quiet = false) {
     if (!this.canPlace(p)) return null;
     this.clearFootprint(p.x, p.z, r);
     const obstacle = this.nav.addObstacle({ kind: 'cyl', x: p.x, z: p.z, r });
@@ -697,7 +714,7 @@ export class Simulation implements GateWorld {
     this.items.push(it);
     this.worldVersion++;
     this.nav.flush() && this.onNavRebuilt();
-    this.log_(`${msg}. NavMesh tiles rebuilt in ${this.nav.lastRebuildMs.toFixed(1)} ms; villagers reroute.`, 'nav');
+    if (!quiet) this.log_(`${msg}. NavMesh tiles rebuilt in ${this.nav.lastRebuildMs.toFixed(1)} ms; villagers reroute.`, 'nav');
     return it;
   }
 
@@ -732,6 +749,39 @@ export class Simulation implements GateWorld {
       this.log_(`Removed the ${best.kind === 'food' ? 'food basket' : best.kind}.`, 'nav');
     }
     return best;
+  }
+
+  /* ---------------- stress test ---------------- */
+
+  setBirdCount(n: number) {
+    this.flock.resize(n, this.rng);
+    this.log_(`Stress test: the flock now has ${this.flock.birds.length} birds.`);
+  }
+
+  /** Drops up to `n` rocks at random free spots, each one a separate TileCache edit and rebuild. */
+  scatterObstacles(n: number) {
+    let placed = 0, worst = 0;
+    const t0 = now();
+    for (let k = 0; k < n * 20 && placed < n; k++) {
+      const p = { x: this.rng.range(WORLD.minX + 2, WORLD.maxX - 2), z: this.rng.range(WORLD.minZ + 2, WORLD.maxZ - 2) };
+      if (this.addBlocking(p, 'rock', 1.25, '', true)) {
+        placed++;
+        worst = Math.max(worst, this.nav.lastRebuildMs);
+      }
+    }
+    this.log_(
+      `Stress test: dropped ${placed} obstacles in ${(now() - t0).toFixed(0)} ms (slowest tile rebuild ${worst.toFixed(1)} ms); ` +
+        `the navmesh now has ${this.nav.obstacleCount} obstacles.`,
+      'nav',
+    );
+    return placed;
+  }
+
+  clearObstacles() {
+    const rocks = this.items.filter(i => i.kind === 'rock');
+    for (const r of rocks) this.removeItem(r);
+    if (rocks.length) this.log_(`Removed ${rocks.length} obstacles.`, 'nav');
+    return rocks.length;
   }
 
   setFestival(on: boolean) {

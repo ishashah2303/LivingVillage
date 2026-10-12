@@ -1,7 +1,7 @@
 [project]
 name = "living-village-planner"
 version = "0.2.0"
-description = "Deliberative planner service for Living Village (rule-based today, LLM later)."
+description = "Deliberative planner service for Living Village (Claude, with a rule-based fallback)."
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=1.13.0",

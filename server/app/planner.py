@@ -233,10 +233,15 @@ class LLMPlanner:
 
     def _get_client(self):
         if self._client is None:
+            import os
+
             import anthropic
 
             # Credentials come from ANTHROPIC_API_KEY (server/.env) or an `ant auth login` profile.
-            self._client = anthropic.AsyncAnthropic(timeout=self.timeout_s, max_retries=1)
+            # A key that is not scoped to a workspace must name one on every request.
+            workspace = os.getenv("ANTHROPIC_WORKSPACE_ID")
+            headers = {"anthropic-workspace-id": workspace} if workspace else None
+            self._client = anthropic.AsyncAnthropic(timeout=self.timeout_s, max_retries=1, default_headers=headers)
         return self._client
 
     async def plan(self, report: SituationReport) -> tuple[list[Command], str, list[str]]:

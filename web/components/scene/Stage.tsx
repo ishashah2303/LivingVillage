@@ -2,7 +2,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 import type { OrbitControls } from 'three-stdlib';
-import { useSim, useUI } from '../store';
+import { framePerf, useSim, useUI } from '../store';
 import Birds from './Birds';
 import Buildings from './Buildings';
 import DayNight from './DayNight';
@@ -16,7 +16,40 @@ import Villagers from './Villagers';
 /** Advances the simulation once per rendered frame, before anything reads it. */
 function SimDriver() {
   const sim = useSim();
-  useFrame((_, dt) => sim.advance(dt), -1);
+  useFrame((_, dt) => {
+    const t0 = performance.now();
+    sim.advance(dt);
+    framePerf.simMs += (performance.now() - t0 - framePerf.simMs) * 0.1;
+  }, -1);
+  return null;
+}
+
+/** Frame rate over half-second windows, plus the renderer's draw calls (shadow passes included). */
+function PerfProbe() {
+  const gl = useThree(s => s.gl);
+  useEffect(() => {
+    let frames = 0, elapsed = 0, worst = 0, raf = 0, last = performance.now();
+    const tick = (t: number) => {
+      const dt = t - last;
+      last = t;
+      frames++;
+      elapsed += dt;
+      worst = Math.max(worst, dt);
+      if (elapsed >= 500) {
+        framePerf.fps = (frames * 1000) / elapsed;
+        framePerf.frameMs = elapsed / frames;
+        framePerf.worstMs = worst;
+        framePerf.calls = gl.info.render.calls;
+        framePerf.triangles = gl.info.render.triangles;
+        frames = 0;
+        elapsed = 0;
+        worst = 0;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [gl]);
   return null;
 }
 
@@ -52,6 +85,7 @@ export default function Stage() {
       gl={{ antialias: true, preserveDrawingBuffer: true }}
     >
       <SimDriver />
+      <PerfProbe />
       <DayNight />
       <Terrain />
       <Buildings />

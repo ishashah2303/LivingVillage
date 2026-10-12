@@ -18,9 +18,9 @@ services:
         sync: false
       - key: ANTHROPIC_WORKSPACE_ID
         sync: false
-      # The GitHub Pages origin (scheme + host, no path). Other sites' browsers are refused.
+      # GitHub Pages origins (scheme + host, no path), comma-separated. Other sites' browsers are refused.
       - key: LV_ALLOWED_ORIGINS
-        value: https://harjeet-chahal.github.io
+        value: https://ishashah2303.github.io,https://harjeet-chahal.github.io
       # Spend caps: over either one, the rule-based planner answers and nothing is billed.
       - key: LV_LLM_PER_CLIENT
         value: "20"

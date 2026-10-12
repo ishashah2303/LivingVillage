@@ -13,7 +13,7 @@ Configuration (environment or server/.env):
   LV_MODEL            Claude model id (default claude-opus-5-5)
   LV_EFFORT           low | medium | high (default low: the plan is short, latency matters)
   LV_ALLOWED_ORIGINS  extra comma-separated browser origins allowed to call the service, e.g.
-                      https://harjeet-chahal.github.io (no path); applies to REST (CORS) and the WebSocket
+                      https://ishashah2303.github.io (no path); applies to REST (CORS) and the WebSocket
   LV_LLM_PER_CLIENT   Claude plans per client per hour (default 20); over it the rules answer
   LV_LLM_PER_HOUR     Claude plans per hour for the whole service (default 120)
 """

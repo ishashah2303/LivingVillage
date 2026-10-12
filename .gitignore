@@ -1,0 +1,23 @@
+# OS and local tool config
+.DS_Store
+.claude/
+
+# Secrets (server/.env holds the Anthropic API key)
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Course-provided assignment brief (not our work); kept locally only
+/Assignment 1.pdf

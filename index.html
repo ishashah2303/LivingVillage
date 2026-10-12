@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Living Village: interactive mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e4ebe3; --panel:#fbfcf9; --ink:#1f2a24; --muted:#5d6b62; --line:rgba(31,42,36,.13);
+  --moss:#3f6b4a; --moss-soft:rgba(63,107,74,.12); --ember:#c9502a; --ember-soft:rgba(201,80,42,.13); --bar:#e3e7df;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121815; --panel:#1b231f; --ink:#e5ece6; --muted:#9fb0a4; --line:rgba(229,236,230,.13);
+    --moss:#8cc49a; --moss-soft:rgba(140,196,154,.14); --ember:#f08a62; --ember-soft:rgba(240,138,98,.15); --bar:#2c3832;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121815; --panel:#1b231f; --ink:#e5ece6; --muted:#9fb0a4; --line:rgba(229,236,230,.13);
+  --moss:#8cc49a; --moss-soft:rgba(140,196,154,.14); --ember:#f08a62; --ember-soft:rgba(240,138,98,.15); --bar:#2c3832;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Figtree,system-ui,-apple-system,"Segoe UI",sans-serif}
+h1,h2,h3{font-family:"Bricolage Grotesque",Figtree,system-ui,sans-serif;margin:0}
+button{font:inherit;color:inherit}
+button:focus-visible{outline:2px solid var(--moss);outline-offset:2px}
+.app{display:grid;grid-template-columns:200px minmax(0,1fr) 290px;grid-template-rows:auto minmax(0,1fr) 170px;
+  gap:12px;padding:12px;height:100vh;
+  grid-template-areas:"top top top" "tools stage insp" "tools log insp"}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px}
+header{grid-area:top;display:flex;align-items:center;gap:16px;padding:8px 10px 8px 16px}
+header h1{font-size:20px}
+header p{margin:0;color:var(--muted);flex:1}
+#clock{font-variant-numeric:tabular-nums;font-weight:600}
+.seg{display:flex;background:var(--bar);border-radius:9px;padding:2px}
+.seg button{border:0;background:transparent;padding:4px 10px;border-radius:7px;cursor:pointer;font-weight:600;font-size:13px}
+.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+#tools{grid-area:tools;padding:12px;overflow:auto}
+h3{font-size:14px;margin-bottom:8px}
+.tool{display:flex;align-items:center;gap:10px;width:100%;border:1px solid transparent;background:transparent;padding:7px 8px;border-radius:9px;cursor:pointer;text-align:left}
+.tool:hover{background:var(--moss-soft)}
+.tool[aria-pressed="true"]{background:var(--moss-soft);border-color:var(--moss)}
+.tool.fire[aria-pressed="true"],.tool.on.alert{background:var(--ember-soft);border-color:var(--ember)}
+.tool.on{background:var(--moss-soft);border-color:var(--moss)}
+.ic{width:22px;text-align:center}
+.sep{height:1px;background:var(--line);margin:10px 0}
+.hint{color:var(--muted);font-size:12.5px;margin:10px 2px 0}
+#stage{grid-area:stage;position:relative;overflow:hidden;padding:0}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer}
+#cv.placing{cursor:crosshair}
+#insp{grid-area:insp;padding:12px;overflow:auto}
+#chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{border:1px solid var(--line);background:transparent;border-radius:20px;padding:3px 10px 3px 6px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:12.5px}
+.chip[aria-pressed="true"]{border-color:var(--ink)}
+.dot{width:12px;height:12px;border-radius:50%;flex:none;display:inline-block}
+.who{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+.who .dot{width:28px;height:28px}
+.who h2{font-size:20px;line-height:1.1}
+.who p{margin:0;color:var(--muted)}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0 0 12px}
+dt{color:var(--muted)} dd{margin:0;font-weight:500}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;background:var(--moss-soft);padding:1px 5px;border-radius:5px}
+.need{display:grid;grid-template-columns:62px 1fr 28px;align-items:center;gap:8px;margin:5px 0;font-size:13px}
+.track{height:7px;background:var(--bar);border-radius:4px;overflow:hidden}
+.fill{height:100%;border-radius:4px}
+.need span:last-child{text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+.sub{margin:14px 0 6px;font-size:13px}
+ul.mem{margin:0;padding:0;list-style:none}
+ul.mem li{padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+time{color:var(--muted);font-variant-numeric:tabular-nums;margin-right:6px}
+.empty{color:var(--muted);margin:0}
+#logbox{grid-area:log;padding:10px 14px;display:flex;flex-direction:column;min-height:0}
+#log{list-style:none;margin:0;padding:0;overflow:auto;font-size:12.5px}
+#log li{padding:3px 0;border-top:1px solid var(--line)}
+#log li.alert{color:var(--ember)}
+@media (max-width:900px){
+  .app{height:auto;grid-template-columns:1fr;grid-template-rows:auto auto 60vh auto 200px;
+    grid-template-areas:"top" "tools" "stage" "insp" "log"}
+  header p{display:none}
+  #tools{display:flex;flex-wrap:wrap;gap:4px}
+  #tools h3,.sep,.hint{display:none}
+  .tool{width:auto}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="card">
+    <h1>Living Village</h1>
+    <p>A generative multi-agent ecosystem</p>
+    <span id="clock">Day 1, 07:30</span>
+    <div class="seg" role="group" aria-label="Simulation speed">
+      <button data-speed="0">Pause</button>
+      <button data-speed="1" aria-pressed="true">1×</button>
+      <button data-speed="3">3×</button>
+    </div>
+  </header>
+
+  <aside id="tools" class="card" aria-label="World editor">
+    <h3>World editor</h3>
+    <button class="tool" data-tool="select" aria-pressed="true"><span class="ic">👆</span>Select villager</button>
+    <button class="tool fire" data-tool="fire"><span class="ic">🔥</span>Start a fire</button>
+    <button class="tool" data-tool="rock"><span class="ic">🪨</span>Add obstacle</button>
+    <button class="tool" data-tool="food"><span class="ic">🧺</span>Drop food</button>
+    <button class="tool" data-tool="well"><span class="ic">⛲</span>Build a well</button>
+    <button class="tool" data-tool="erase"><span class="ic">✖</span>Remove item</button>
+    <div class="sep"></div>
+    <button class="tool" id="festBtn"><span class="ic">🎉</span>Hold a festival</button>
+    <button class="tool" id="shortBtn"><span class="ic">🌾</span>Food shortage</button>
+    <p class="hint">Pick a tool, then click the map. Villagers reroute around anything you place.</p>
+  </aside>
+
+  <main id="stage" class="card"><canvas id="cv" aria-label="Top-down village map"></canvas></main>
+
+  <aside id="insp" class="card" aria-label="Villager inspector">
+    <h3>Villagers</h3>
+    <div id="chips"></div>
+    <div id="detail"></div>
+  </aside>
+
+  <section id="logbox" class="card" aria-label="Event log">
+    <h3>Village log</h3>
+    <ul id="log"></ul>
+  </section>
+</div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s);
+let seed = 5;
+const rnd = () => (seed = (seed * 16807) % 2147483647, (seed - 1) / 2147483646);
+const rr = (a, b) => a + rnd() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b, c, d) => Math.hypot(a - c, b - d);
+
+/* ---------- grid (stand-in for the NavMesh) ---------- */
+const W = 48, H = 32;
+const blocked = new Uint8Array(W * H);
+const idx = (i, j) => j * W + i;
+const inb = (i, j) => i >= 0 && j >= 0 && i < W && j < H;
+const isFree = (i, j) => inb(i, j) && blocked[idx(i, j)] === 0;
+const cellFree = (x, y) => isFree(Math.floor(x), Math.floor(y));
+function blockCircle(x, y, r, v = 1) {
+  for (let j = Math.floor(y - r - 1); j <= y + r + 1; j++)
+    for (let i = Math.floor(x - r - 1); i <= x + r + 1; i++)
+      if (inb(i, j) && dist(i + .5, j + .5, x, y) <= r + .35) blocked[idx(i, j)] += v;
+}
+function blockRect(x0, y0, x1, y1) {
+  for (let j = Math.floor(y0 - 1); j <= y1 + 1; j++)
+    for (let i = Math.floor(x0 - 1); i <= x1 + 1; i++)
+      if (inb(i, j) && i + .5 >= x0 - .35 && i + .5 <= x1 + .35 && j + .5 >= y0 - .35 && j + .5 <= y1 + .35) blocked[idx(i, j)] += 1;
+}
+function danger(i, j) {
+  let c = 0;
+  for (const f of fires) if (f.alive) { const d = dist(i + .5, j + .5, f.x, f.y); if (d < 5) c += 10 * (1 - d / 5); }
+  return c;
+}
+function nearestFree(i, j) {
+  for (let r = 1; r < 8; r++)
+    for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++)
+      if (Math.max(Math.abs(di), Math.abs(dj)) === r && isFree(i + di, j + dj)) return [i + di, j + dj];
+  return null;
+}
+const CLR = [[0, 0], [.3, 0], [-.3, 0], [0, .3], [0, -.3]];
+function los(a, b, avoid) {
+  const steps = Math.ceil(dist(a.x, a.y, b.x, b.y) / 0.3);
+  for (let s = 1; s < steps; s++) {
+    const t = s / steps, x = a.x + (b.x - a.x) * t, y = a.y + (b.y - a.y) * t;
+    for (const [ox, oy] of CLR) if (!cellFree(x + ox, y + oy)) return false;
+    if (avoid && danger(Math.floor(x), Math.floor(y)) > 0) return false;
+  }
+  return true;
+}
+function findPath(sx, sy, tx, ty) {
+  let si = Math.floor(sx), sj = Math.floor(sy), ti = Math.floor(tx), tj = Math.floor(ty);
+  const exact = isFree(ti, tj);
+  if (!exact) { const f = nearestFree(ti, tj); if (!f) return []; [ti, tj] = f; }
+  if (!isFree(si, sj)) { const f = nearestFree(si, sj); if (f) [si, sj] = f; }
+  const start = idx(si, sj), goal = idx(ti, tj);
+  const g = new Float32Array(W * H).fill(Infinity), came = new Int32Array(W * H).fill(-1), closed = new Uint8Array(W * H);
+  const open = [[0, start]];
+  const hh = (i, j) => { const dx = Math.abs(i - ti), dy = Math.abs(j - tj); return dx + dy + (Math.SQRT2 - 2) * Math.min(dx, dy); };
+  g[start] = 0;
+  let found = false;
+  while (open.length) {
+    let bi = 0; for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k;
+    const n = open[bi][1]; open[bi] = open[open.length - 1]; open.pop();
+    if (closed[n]) continue; closed[n] = 1;
+    if (n === goal) { found = true; break; }
+    const i = n % W, j = (n / W) | 0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ni = i + di, nj = j + dj;
+      if (!isFree(ni, nj) || (di && dj && (!isFree(i + di, j) || !isFree(i, j + dj)))) continue;
+      const m = idx(ni, nj); if (closed[m]) continue;
+      const ng = g[n] + (di && dj ? Math.SQRT2 : 1) + danger(ni, nj);
+      if (ng < g[m]) { g[m] = ng; came[m] = n; open.push([ng + hh(ni, nj), m]); }
+    }
+  }
+  if (!found) return [];
+  const pts = [];
+  for (let n = goal; n !== -1; n = came[n]) pts.push({ x: n % W + .5, y: ((n / W) | 0) + .5 });
+  pts.reverse();
+  pts[0] = { x: sx, y: sy };
+  if (exact) pts[pts.length - 1] = { x: tx, y: ty };
+  const out = [];
+  let k = 0;
+  while (k < pts.length - 1) {
+    let m = pts.length - 1;
+    while (m > k + 1 && !los(pts[k], pts[m], true)) m--;
+    out.push(pts[m]); k = m;
+  }
+  return out;
+}
+
+/* ---------- world layout ---------- */
+for (let i = 0; i < W; i++) { blocked[idx(i, 0)] = blocked[idx(i, H - 1)] = 1; }
+for (let j = 0; j < H; j++) { blocked[idx(0, j)] = blocked[idx(W - 1, j)] = 1; }
+const PLACES = {
+  square: { name: 'Town Square', cmd: 'TownSquare', x: 24, y: 16, r: 2.5, ring: true },
+  market: { name: 'Marketplace', cmd: 'Marketplace', x: 33, y: 11.5, r: 1.8 },
+  farm:   { name: 'Farm', cmd: 'Farm', x: 8, y: 24, r: 3 },
+  pond:   { name: 'Pond', cmd: 'Pond', x: 11.5, y: 11, r: 1 },
+  forest: { name: 'Forest clearing', cmd: 'ForestClearing', x: 40, y: 27.5, r: 1.2 },
+  post:   { name: 'Guard post', cmd: 'GuardPost', x: 26, y: 6.5, r: .6 },
+};
+const HOUSES = [[16, 7], [17, 24], [24, 27], [31, 24], [41, 19], [41, 5]].map(([x, y], i) => ({ x, y, dx: x, dy: y + 2.4, i }));
+const STALLS = [[30, 9, '#b8413a'], [33, 9, '#3d6fa3'], [36, 9, '#d49a2a']];
+const POND = { x: 7, y: 8, r: 3.6 };
+const TOWER = { x: 26, y: 4 };
+const segs = [];
+for (const k of ['market', 'farm', 'pond', 'forest', 'post']) segs.push([PLACES.square, PLACES[k], 1.4]);
+for (const h of HOUSES) segs.push([PLACES.square, { x: h.dx, y: h.dy }, 1]);
+
+blockCircle(24, 16, 1.1);
+for (const h of HOUSES) blockRect(h.x - 1.5, h.y - 1.5, h.x + 1.5, h.y + 1.5);
+for (const [x, y] of STALLS) blockRect(x - 1, y - .5, x + 1, y + .5);
+blockCircle(POND.x, POND.y, POND.r);
+blockRect(TOWER.x - .8, TOWER.y - .8, TOWER.x + .8, TOWER.y + .8);
+blockRect(1.5, 28.5, 3.5, 30.5); // barn
+
+function distSeg(px, py, a, b) {
+  const vx = b.x - a.x, vy = b.y - a.y, t = clamp(((px - a.x) * vx + (py - a.y) * vy) / (vx * vx + vy * vy), 0, 1);
+  return dist(px, py, a.x + vx * t, a.y + vy * t);
+}
+const trees = [];
+function tryTree(x, y) {
+  for (const [a, b] of segs) if (distSeg(x, y, a, b) < 1.5) return;
+  for (const k in PLACES) if (dist(x, y, PLACES[k].x, PLACES[k].y) < PLACES[k].r + 2) return;
+  if (x > 2 && x < 14 && y > 19 && y < 29) return;
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (!isFree(Math.floor(x) + di, Math.floor(y) + dj)) return;
+  trees.push({ x, y, r: rr(.7, 1.05), c: ['#3f7a3d', '#4d8a44', '#356b3a'][Math.floor(rnd() * 3)] });
+  blockCircle(x, y, .4);
+}
+for (let k = 0; k < 200; k++) tryTree(rr(35, 47), rr(22, 31));
+for (let k = 0; k < 120; k++) { const e = Math.floor(rnd() * 4); tryTree(e === 0 ? rr(1, 4) : e === 1 ? rr(44, 47) : rr(1, 47), e === 2 ? rr(1, 3) : e === 3 ? rr(29, 31) : rr(1, 31)); }
+
+/* ---------- sim state ---------- */
+const world = { hour: 7.5, day: 1, festival: 0, shortage: 0 };
+let simTime = 0, speed = 1, uid = 1;
+const fires = [], items = [];
+const clockStr = () => { const h = Math.floor(world.hour), m = Math.floor((world.hour - h) * 60); return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`; };
+function log(html, cls = '') {
+  const li = document.createElement('li'); if (cls) li.className = cls;
+  li.innerHTML = `<time>${clockStr()}</time>${html}`;
+  $('#log').prepend(li);
+  while ($('#log').children.length > 40) $('#log').lastChild.remove();
+}
+function placeName(x, y) {
+  let best = '', bd = 1e9;
+  for (const k in PLACES) { const d = dist(x, y, PLACES[k].x, PLACES[k].y); if (d < bd) { bd = d; best = PLACES[k].name; } }
+  return best;
+}
+
+/* ---------- villagers ---------- */
+const DEFS = [
+  ['Maya', 'farmer', '#c9853a', 0], ['Ravi', 'merchant', '#3d6fa3', 1], ['Tomas', 'guard', '#5d6470', 2],
+  ['Elena', 'fisher', '#3f8f86', 3], ['Jonah', 'woodcutter', '#7a4b33', 4], ['Priya', 'merchant', '#a94c7a', 1],
+  ['Oskar', 'farmer', '#8e9a3a', 5], ['Lina', 'villager', '#d0674b', 0],
+];
+const ROLE = { farmer: 'Farmer', merchant: 'Merchant', guard: 'Guard', fisher: 'Fisher', woodcutter: 'Woodcutter', villager: 'Villager' };
+const WORK = { farmer: 'farm', merchant: 'market', fisher: 'pond', woodcutter: 'forest' };
+const CHAT = ['Morning!', 'Good harvest?', 'Heard the news?', 'Nice weather.', 'Prices are up.', 'See you later.'];
+const npcs = DEFS.map(([name, role, color, home], id) => {
+  const h = HOUSES[home];
+  return {
+    id, name, role, color, home, x: h.dx + rr(-1, 1), y: h.dy + rr(0, .8), face: 0,
+    hunger: rr(10, 45), energy: rr(65, 95), social: rr(20, 60),
+    ox: rr(-1, 1), oy: rr(-1, 1), ang: rr(0, Math.PI * 2), rad: rnd(),
+    goal: null, goalKey: null, path: [], act: 'idle', speed: rr(2.0, 2.5), phase: rnd() * 6,
+    memory: [], rel: {}, safe: {}, help: null, hungry: false, tired: false, lastCmd: null,
+    say: '', sayT: 0, think: rnd() * .4, stuck: 0, visible: true,
+  };
+});
+npcs.forEach(a => npcs.forEach(b => { if (a !== b) a.rel[b.id] = Math.round(rr(15, 70)); }));
+[[0, 6, 85], [1, 5, 80], [3, 7, 78], [2, 4, 72], [0, 7, 74]].forEach(([a, b, v]) => { npcs[a].rel[b] = v; npcs[b].rel[a] = v; });
+const say = (n, t, d = 2.5) => { n.say = t; n.sayT = d; };
+function remember(n, text) {
+  if (n.memory[0] && n.memory[0].text === text) return;
+  n.memory.unshift({ t: `D${world.day} ${clockStr()}`, text });
+  n.memory.length = Math.min(n.memory.length, 6);
+}
+const bump = (a, b, v) => { a.rel[b.id] = clamp(a.rel[b.id] + v, 0, 100); b.rel[a.id] = clamp(b.rel[a.id] + v, 0, 100); };
+
+/* ---------- decisions: priority selector (behavior-tree style) ---------- */
+function spot(k, n) {
+  const P = PLACES[k];
+  if (P.ring) { const r = 2.3 + n.rad * 1.7; return { x: P.x + Math.cos(n.ang) * r, y: P.y + Math.sin(n.ang) * r }; }
+  return { x: P.x + n.ox * P.r, y: P.y + n.oy * P.r };
+}
+const alive = () => fires.filter(f => f.alive);
+function nearestFire(n) {
+  let best = null;
+  for (const f of alive()) { const d = dist(n.x, n.y, f.x, f.y); if (!best || d < best.d) best = { f, d }; }
+  return best;
+}
+function pickSafe(n, f) {
+  const c = Object.values(PLACES).filter(P => P !== PLACES.post).map(P => ({ name: P.name, cmd: P.cmd, x: P.x, y: P.y }))
+    .concat(HOUSES.map(h => ({ name: `house ${h.i + 1}`, cmd: `House${h.i + 1}`, x: h.dx, y: h.dy })));
+  let best = c[0], bs = -1e9;
+  for (const p of c) {
+    const df = dist(p.x, p.y, f.x, f.y), s = (df > 12 ? 100 : 0) + df - .4 * dist(p.x, p.y, n.x, n.y);
+    if (s > bs) { bs = s; best = p; }
+  }
+  return { ...best, x: best.x + rr(-1, 1), y: best.y + rr(-.5, .8) };
+}
+function scheduled(n) {
+  const h = world.hour, hs = HOUSES[n.home];
+  if (h >= 22 || h < 6) return { key: 'sleep', label: 'Sleeping at home', x: hs.dx, y: hs.dy - .6, act: 'sleep' };
+  if (h < 8) return { key: 'morning', label: 'Morning chores at home', x: hs.dx + n.ox * 1.3, y: hs.dy + .6, act: 'idle' };
+  if (h >= 12 && h < 13 && n.hunger > 25 && !world.shortage) return { key: 'lunch', label: 'Lunch at the market', ...spot('market', n), act: 'eat' };
+  if (h < 17) {
+    if (n.role === 'guard') {
+      const s = ['post', 'square', 'market'], k = Math.floor(simTime / 12) % 3;
+      return { key: 'patrol' + k, label: `Patrolling the ${PLACES[s[k]].name}`, ...spot(s[k], n), act: 'idle' };
+    }
+    if (n.role === 'villager') {
+      const s = ['square', 'pond', 'market', 'forest'], k = Math.floor(simTime / 16) % 4;
+      return { key: 'wander' + k, label: `Visiting the ${PLACES[s[k]].name}`, ...spot(s[k], n), act: 'social' };
+    }
+    const w = WORK[n.role];
+    return { key: 'work', label: `Working at the ${PLACES[w].name}`, ...spot(w, n), act: 'work' };
+  }
+  if (h < 21) {
+    let best = { ...spot('square', n), name: 'the Town Square' };
+    for (const it of items) if (it.type === 'well' && dist(it.x, it.y, n.x, n.y) < dist(best.x, best.y, n.x, n.y))
+      best = { x: it.x + Math.cos(n.ang) * 1.5, y: it.y + Math.sin(n.ang) * 1.5, name: 'the new well' };
+    return { key: 'social' + best.name, label: `Chatting at ${best.name}`, x: best.x, y: best.y, act: 'social' };
+  }
+  return { key: 'evening', label: 'Winding down at home', x: hs.dx + n.ox, y: hs.dy + .6, act: 'idle' };
+}
+function avoidFire(n, g) {
+  for (const f of alive()) if (dist(g.x, g.y, f.x, f.y) < 8)
+    return { key: 'avoid' + f.id, label: `Avoiding the fire at the ${f.place}`, x: n.x, y: n.y, act: 'idle' };
+  return g;
+}
+function decide(n) {
+  if (n.help) {
+    const v = n.help.victim;
+    if (!n.help.fire.alive || simTime > n.help.until) n.help = null;
+    else return { key: 'help', label: `Helping ${v.name} to safety`, x: v.x, y: v.y, act: 'idle', run: true, dyn: v, cmd: `HELP_AGENT(${v.name})` };
+  }
+  for (const f of alive()) if (n.safe[f.id]) {
+    const s = n.safe[f.id];
+    return { key: 'flee' + f.id, label: `Escaping to ${s.name}`, x: s.x, y: s.y, act: 'shelter', run: true, cmd: `EVACUATE(${s.cmd})` };
+  }
+  const nf = nearestFire(n);
+  if (nf && n.role === 'guard' && nf.d < 30) {
+    const f = nf.f, d = nf.d || 1;
+    return { key: 'douse' + f.id, label: 'Putting out the fire', x: f.x + (n.x - f.x) / d * 1.9, y: f.y + (n.y - f.y) / d * 1.9, act: 'douse', run: true, fire: f, cmd: `INVESTIGATE(Fire)` };
+  }
+  if (nf && nf.d < 9 && n.role !== 'guard') {
+    n.safe[nf.f.id] = pickSafe(n, nf.f); nf.f.fled.add(n);
+    remember(n, `Saw a fire near the ${nf.f.place} and ran`);
+    say(n, 'Fire!');
+    return decide(n);
+  }
+  if (world.festival) return avoidFire(n, { key: 'fest', label: 'Dancing at the festival', ...spot('square', n), act: 'dance' });
+  if (n.hunger > 75) n.hungry = true;
+  if (n.hunger < 12) n.hungry = false;
+  if (n.hungry) {
+    let pile = null, pd = 1e9;
+    for (const it of items) if (it.type === 'food' && it.servings > 0) { const d = dist(it.x, it.y, n.x, n.y); if (d < pd) { pd = d; pile = it; } }
+    if (pile) return { key: 'food' + pile.id, label: 'Going to the dropped food', x: pile.x + Math.cos(n.ang) * .8, y: pile.y + Math.sin(n.ang) * .8, act: 'eat', pile };
+    if (world.shortage) return avoidFire(n, { key: 'forage', label: 'Foraging at the farm (shortage)', ...spot('farm', n), act: 'forage' });
+    return avoidFire(n, { key: 'eat', label: 'Getting food at the market', ...spot('market', n), act: 'eat' });
+  }
+  if (n.energy < 15) n.tired = true;
+  if (n.energy > 85) n.tired = false;
+  if (n.tired) { const h = HOUSES[n.home]; return { key: 'rest', label: 'Tired, going home to rest', x: h.dx, y: h.dy - .6, act: 'sleep' }; }
+  return avoidFire(n, scheduled(n));
+}
+function setGoal(n, g) {
+  n.goal = g; n.goalKey = g.key; n.act = 'walk'; n.visible = true; n.stuck = 0;
+  n.path = findPath(n.x, n.y, g.x, g.y); n.tx = g.x; n.ty = g.y;
+  if (g.cmd && g.cmd !== n.lastCmd) log(`Planner → ${n.name}: <code>${g.cmd}</code>`);
+  n.lastCmd = g.cmd || null;
+}
+function arrive(n) {
+  const g = n.goal; n.act = g.act;
+  if (g.pile) {
+    if (g.pile.servings > 0) {
+      g.pile.servings--; say(n, 'Thank you!');
+      if (world.shortage) remember(n, 'Found food someone left out during the shortage');
+      if (g.pile.servings <= 0) setTimeout(() => removeItem(g.pile), 1200);
+    } else n.goalKey = null;
+  }
+  if (g.act === 'sleep') n.visible = false;
+  if (g.act === 'shelter') say(n, 'Safe here.');
+}
+function repathAll() {
+  for (const n of npcs) if (n.path.length) {
+    let prev = n, bad = false;
+    for (const w of n.path) { if (!los(prev, w, false)) { bad = true; break; } prev = w; }
+    if (bad) n.path = findPath(n.x, n.y, n.tx, n.ty);
+  }
+}
+
+/* ---------- birds (Boids) ---------- */
+const birds = Array.from({ length: 30 }, () => ({ x: rr(18, 30), y: rr(10, 22), vx: rr(-3, 3), vy: rr(-3, 3), flap: rnd() * 6 }));
+let startle = 0;
+function updateBirds(dt) {
+  const night = world.hour >= 21 || world.hour < 6;
+  const hx = night ? 42 : 24 + Math.cos(simTime * .08) * 12, hy = night ? 27 : 16 + Math.sin(simTime * .08) * 8;
+  for (const b of birds) {
+    let sx = 0, sy = 0, ax = 0, ay = 0, cx = 0, cy = 0, c = 0;
+    for (const o of birds) {
+      if (o === b) continue;
+      const dx = b.x - o.x, dy = b.y - o.y, d = Math.hypot(dx, dy);
+      if (d < 3.5) {
+        c++; ax += o.vx; ay += o.vy; cx += o.x; cy += o.y;
+        if (d < 1) { sx += dx / (d * d + .01); sy += dy / (d * d + .01); }   // separation
+      }
+    }
+    let fx = sx * 2.2, fy = sy * 2.2;
+    if (c) {
+      fx += (ax / c - b.vx) * .9 + (cx / c - b.x) * .5;                       // alignment + cohesion
+      fy += (ay / c - b.vy) * .9 + (cy / c - b.y) * .5;
+    }
+    fx += (hx - b.x) * .06; fy += (hy - b.y) * .06;
+    if (b.x < 2) fx += (2 - b.x) * 6; if (b.x > W - 2) fx -= (b.x - W + 2) * 6;
+    if (b.y < 2) fy += (2 - b.y) * 6; if (b.y > H - 2) fy -= (b.y - H + 2) * 6;
+    for (const f of alive()) {
+      const dx = b.x - f.x, dy = b.y - f.y, d = Math.hypot(dx, dy) || 1;
+      if (d < 9) { fx += dx / d * (9 - d) * 2; fy += dy / d * (9 - d) * 2; }
+    }
+    if (startle > 0) { fx += rr(-1, 1) * 10 * startle; fy += rr(-1, 1) * 10 * startle; }
+    b.vx += fx * dt; b.vy += fy * dt;
+    const sp = Math.hypot(b.vx, b.vy), mx = startle > 0 ? 9 : 5.5, mn = night && Math.hypot(hx - b.x, hy - b.y) < 2 ? .4 : 2.5;
+    if (sp > mx) { b.vx *= mx / sp; b.vy *= mx / sp; } else if (sp < mn) { b.vx *= mn / sp; b.vy *= mn / sp; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    b.flap += dt * (10 + sp);
+  }
+  startle = Math.max(0, startle - dt * .5);
+}
+
+/* ---------- events ---------- */
+function startFire(x, y) {
+  const f = { id: uid++, type: 'fire', x, y, hp: 10, life: 40, alive: true, place: placeName(x, y), fled: new Set(), fade: 1 };
+  blockCircle(x, y, 1.1);
+  fires.push(f); items.push(f);
+  startle = 1;
+  log(`🔥 A fire broke out near the ${f.place}.`, 'alert');
+  repathAll();
+  const vict = npcs.filter(n => n.role !== 'guard' && n.visible && dist(n.x, n.y, x, y) < 7).sort((a, b) => dist(a.x, a.y, x, y) - dist(b.x, b.y, x, y))[0];
+  if (vict) {
+    const fr = npcs.filter(o => o !== vict && o.role !== 'guard' && o.visible && !o.help && dist(o.x, o.y, x, y) > 9)
+      .sort((a, b) => vict.rel[b.id] - vict.rel[a.id])[0];
+    if (fr && vict.rel[fr.id] > 50) { fr.help = { victim: vict, fire: f, until: simTime + 15 }; fr.goalKey = null; }
+  }
+  npcs.forEach(n => n.think = Math.min(n.think, rnd() * .3));
+}
+function endFire(f, byGuard) {
+  f.alive = false;
+  blockCircle(f.x, f.y, 1.1, -1);
+  log(byGuard ? `🧯 The fire near the ${f.place} was put out.` : `The fire near the ${f.place} burned out.`);
+  for (const n of f.fled) { remember(n, `Survived the fire near the ${f.place}`); delete n.safe[f.id]; n.goalKey = null; }
+  for (const n of npcs) if (n.goal && n.goal.fire === f) { remember(n, `Put out the fire near the ${f.place}`); say(n, 'All clear!'); n.goalKey = null; }
+}
+function removeItem(it) {
+  const i = items.indexOf(it); if (i < 0) return;
+  items.splice(i, 1);
+  if (it.type === 'fire') { if (it.alive) endFire(it, false); fires.splice(fires.indexOf(it), 1); }
+  else if (it.r) blockCircle(it.x, it.y, it.r, -1);
+  repathAll();
+}
+function addBlocking(type, x, y, r, msg) {
+  items.push({ id: uid++, type, x, y, r, rot: rnd() * 6 });
+  blockCircle(x, y, r);
+  log(msg); repathAll();
+}
+function setFestival(on) {
+  world.festival = on ? 35 : 0;
+  $('#festBtn').classList.toggle('on', on);
+  if (on) log('🎉 A festival began in the Town Square.');
+  else {
+    log('The festival ended.');
+    for (const n of npcs) if (n.act === 'dance') { remember(n, 'Danced at the festival'); for (const o of npcs) if (o !== n && o.act === 'dance') n.rel[o.id] = clamp(n.rel[o.id] + 4, 0, 100); }
+  }
+  npcs.forEach(n => n.goalKey = null);
+}
+function setShortage(on) {
+  world.shortage = on ? 50 : 0;
+  $('#shortBtn').classList.toggle('on', on);
+  $('#shortBtn').classList.toggle('alert', on);
+  if (on) { log('🌾 Food shortage: the market is empty and hunger rises faster.', 'alert'); npcs.forEach(n => remember(n, 'The market ran out of food')); }
+  else log('The shortage is over. The market is restocked.');
+  npcs.forEach(n => n.goalKey = null);
+}
+
+/* ---------- rendering ---------- */
+const cv = $('#cv'), ctx = cv.getContext('2d');
+let S = 20, ox = 0, oy = 0, dpr = 1;
+const bg = document.createElement('canvas'), bctx = bg.getContext('2d');
+function resize() {
+  const r = cv.getBoundingClientRect();
+  dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = r.width * dpr; cv.height = r.height * dpr;
+  S = Math.min(r.width / W, r.height / H);
+  ox = (r.width - W * S) / 2; oy = (r.height - H * S) / 2;
+  bg.width = cv.width; bg.height = cv.height;
+  drawStatic();
+}
+function circle(c, x, y, r, fill) { c.beginPath(); c.arc(x * S, y * S, r * S, 0, Math.PI * 2); c.fillStyle = fill; c.fill(); }
+function rect(c, x, y, w, h, fill, rad = 0) { c.beginPath(); c.roundRect(x * S, y * S, w * S, h * S, rad * S); c.fillStyle = fill; c.fill(); }
+function drawStatic() {
+  const c = bctx;
+  c.setTransform(dpr, 0, 0, dpr, ox * dpr, oy * dpr);
+  c.clearRect(-ox, -oy, cv.width, cv.height);
+  rect(c, 0, 0, W, H, '#93b168', .6);
+  // grass speckles
+  let s2 = 3; const r2 = () => (s2 = (s2 * 16807) % 2147483647) / 2147483647;
+  for (let k = 0; k < 500; k++) circle(c, r2() * W, r2() * H, .08 + r2() * .1, 'rgba(60,100,40,.18)');
+  // paths
+  c.lineCap = 'round'; c.strokeStyle = '#d4c092';
+  for (const [a, b, w] of segs) { c.lineWidth = w * S; c.beginPath(); c.moveTo(a.x * S, a.y * S); c.lineTo(b.x * S, b.y * S); c.stroke(); }
+  // square
+  circle(c, 24, 16, 4.2, '#cfc6b3');
+  c.strokeStyle = 'rgba(0,0,0,.08)'; c.lineWidth = 1;
+  for (let r = 1.8; r < 4.2; r += .8) { c.beginPath(); c.arc(24 * S, 16 * S, r * S, 0, 7); c.stroke(); }
+  circle(c, 24, 16, 1.2, '#9a9486'); circle(c, 24, 16, .9, '#6aa7bb'); circle(c, 24, 16, .2, '#9a9486');
+  // farm
+  rect(c, 2.5, 19.5, 11, 8.5, '#7c5c3b', .3);
+  rect(c, 1.5, 28.5, 2, 2, '#9b3f32', .1); rect(c, 1.5, 28.5, 2, .5, '#6e2e25');
+  // pond
+  circle(c, POND.x, POND.y, POND.r + .6, '#dccf9f');
+  circle(c, POND.x, POND.y, POND.r, '#5b98ae');
+  circle(c, POND.x - 1, POND.y - 1, 1.2, 'rgba(255,255,255,.12)');
+  c.save(); c.translate(10.6 * S, 9.6 * S); c.rotate(.7); rect(c, -.35, -1.2, .7, 2.2, '#8a6440'); c.restore();
+  // tower
+  rect(c, TOWER.x - .9, TOWER.y - .9, 1.8, 1.8, '#8d8577', .15); rect(c, TOWER.x - .6, TOWER.y - .6, 1.2, 1.2, '#5f6f82', .1);
+  // crates
+  rect(c, 37.6, 10.4, .8, .8, '#a07a4c', .1); rect(c, 38, 11.4, .8, .8, '#8d6a40', .1);
+  // houses
+  HOUSES.forEach(h => {
+    rect(c, h.x - 1.35, h.y - 1.25, 3, 3, 'rgba(0,0,0,.18)', .15);
+    rect(c, h.x - 1.5, h.y - 1.5, 3, 3, ['#9f513a', '#5f6f82', '#7a5c3c'][h.i % 3], .15);
+    c.strokeStyle = 'rgba(0,0,0,.2)'; c.lineWidth = 1.5;
+    c.beginPath(); c.moveTo((h.x - 1.5) * S, h.y * S); c.lineTo((h.x + 1.5) * S, h.y * S); c.stroke();
+    rect(c, h.x - .35, h.y + 1.3, .7, .35, '#6b4a30');
+    c.fillStyle = '#fff'; c.font = `600 ${Math.max(9, S * .55)}px Figtree, sans-serif`; c.textAlign = 'center';
+    c.fillText(String(h.i + 1), h.x * S, (h.y - .3) * S);
+  });
+  // trees
+  for (const t of trees) { circle(c, t.x + .15, t.y + .2, t.r, 'rgba(0,0,0,.18)'); circle(c, t.x, t.y, t.r, t.c); circle(c, t.x - .2, t.y - .2, t.r * .45, 'rgba(255,255,255,.1)'); }
+  // labels
+  c.font = `600 ${Math.max(10, S * .5)}px Figtree, sans-serif`; c.fillStyle = 'rgba(31,42,36,.7)';
+  c.fillText('Farm', 8 * S, 19 * S); c.fillText('Market', 33 * S, 7.6 * S); c.fillText('Pond', 7 * S, 3.6 * S);
+  c.fillText('Forest', 42 * S, 23 * S); c.fillText('Guard tower', 26 * S, 2.6 * S);
+}
+function draw() {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cv.width, cv.height);
+  ctx.drawImage(bg, 0, 0, cv.width / dpr, cv.height / dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, ox * dpr, oy * dpr);
+  // crops
+  for (let x = 3.5; x < 13; x += 1.3) for (let y = 20.5; y < 27.5; y += 1.2)
+    if (dist(x, y, 8, 24) > 1.2) circle(ctx, x, y, .32, world.shortage ? '#a39346' : '#5f9a3a');
+  // market stalls
+  for (const [x, y, col] of STALLS) {
+    rect(ctx, x - 1.1, y - .6, 2.2, 1.2, '#8a6440', .1);
+    if (!world.shortage) ['#e0703a', '#c43d3d', '#9cc04a', '#f0c24b'].forEach((g, k) => circle(ctx, x - .7 + k * .47, y, .18, g));
+    rect(ctx, x - 1.2, y - 1.1, 2.4, .55, col, .1);
+  }
+  // festival lanterns
+  if (world.festival) for (let k = 0; k < 14; k++) {
+    const a = k / 14 * Math.PI * 2 + simTime * .2;
+    circle(ctx, 24 + Math.cos(a) * 4.4, 16 + Math.sin(a) * 4.4, .45, 'rgba(255,200,90,.3)');
+    circle(ctx, 24 + Math.cos(a) * 4.4, 16 + Math.sin(a) * 4.4, .2, ['#ffcf5a', '#ff8a5a', '#8fd0ff'][k % 3]);
+  }
+  // items
+  for (const it of items) {
+    if (it.type === 'rock') {
+      ctx.save(); ctx.translate(it.x * S, it.y * S); ctx.rotate(it.rot);
+      ctx.beginPath(); for (let k = 0; k < 7; k++) { const a = k / 7 * Math.PI * 2, r = (1 + .15 * Math.sin(k * 3)) * S; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+      ctx.fillStyle = '#8b8a82'; ctx.fill(); ctx.restore();
+      circle(ctx, it.x - .3, it.y - .3, .35, '#a3a197');
+    } else if (it.type === 'well') {
+      circle(ctx, it.x, it.y, .95, '#9a9486'); circle(ctx, it.x, it.y, .6, '#4f8aa0');
+      rect(ctx, it.x - .9, it.y - .12, 1.8, .24, '#6b4a30');
+    } else if (it.type === 'food') {
+      circle(ctx, it.x, it.y, .5, '#b58a4f');
+      for (let k = 0; k < it.servings; k++) circle(ctx, it.x + Math.cos(k * 2.1) * .2, it.y + Math.sin(k * 2.1) * .2, .17, ['#d8453a', '#f0c24b', '#8fc04a'][k]);
+    } else if (it.type === 'fire') {
+      const s = it.alive ? 1 : it.fade;
+      circle(ctx, it.x, it.y, 1.6, 'rgba(40,34,28,.55)');
+      if (s > 0) {
+        circle(ctx, it.x, it.y, (3 + .3 * Math.sin(simTime * 8)) * s, 'rgba(255,140,40,.14)');
+        for (let k = 0; k < 7; k++) {
+          const a = k * 2.4 + simTime * 2, r = .5 + .3 * Math.sin(simTime * 7 + k);
+          circle(ctx, it.x + Math.cos(a) * r, it.y + Math.sin(a) * r, (.45 + .15 * Math.sin(simTime * 11 + k)) * s, k % 2 ? '#ff6a1f' : '#ffc23a');
+        }
+        circle(ctx, it.x, it.y, .3 * s, '#fff1a8');
+      }
+    }
+  }
+  // cursor
+  if (hover && tool !== 'select') {
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hover.x * S, hover.y * S, S, 0, 7); ctx.stroke();
+  }
+  // selected path
+  if (selected && selected.visible && selected.path.length) {
+    ctx.setLineDash([4, 4]); ctx.strokeStyle = selected.color; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(selected.x * S, selected.y * S);
+    for (const p of selected.path) ctx.lineTo(p.x * S, p.y * S);
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+  // villagers
+  for (const n of npcs) {
+    if (!n.visible) continue;
+    const bob = n.act === 'dance' ? Math.abs(Math.sin(simTime * 6 + n.id)) * .25 : 0;
+    const x = n.x, y = n.y - bob;
+    circle(ctx, n.x + .08, n.y + .12, .42, 'rgba(0,0,0,.22)');
+    if (n === selected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x * S, y * S, .7 * S, 0, 7); ctx.stroke(); }
+    circle(ctx, x, y, .42, n.color);
+    circle(ctx, x + Math.sin(n.face) * .18, y + Math.cos(n.face) * .18, .2, '#e5b995');
+    if (n.role === 'guard') circle(ctx, x + Math.sin(n.face) * .18, y + Math.cos(n.face) * .18, .12, '#9aa1aa');
+    if (n.act === 'work' || n.act === 'douse') circle(ctx, x + Math.cos(simTime * 8) * .5, y + Math.sin(simTime * 8) * .5, .08, n.act === 'douse' ? '#8fd0ff' : '#fff');
+    ctx.font = `600 11px Figtree, sans-serif`; ctx.textAlign = 'center';
+    const tw = ctx.measureText(n.name).width + 10;
+    ctx.fillStyle = n === selected ? '#1f2a24' : 'rgba(255,255,255,.85)';
+    ctx.beginPath(); ctx.roundRect(x * S - tw / 2, y * S + .55 * S, tw, 15, 6); ctx.fill();
+    ctx.fillStyle = n === selected ? '#fff' : '#1f2a24';
+    ctx.fillText(n.name, x * S, y * S + .55 * S + 11);
+    if (n.sayT > 0) {
+      ctx.font = '12px Figtree, sans-serif';
+      const bw = ctx.measureText(n.say).width + 14, bx = x * S - bw / 2, by = y * S - .6 * S - 22;
+      ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 4;
+      ctx.beginPath(); ctx.roundRect(bx, by, bw, 19, 9); ctx.fill(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#1f2a24'; ctx.fillText(n.say, x * S, by + 14);
+    }
+  }
+  // sleeping indicators
+  for (const h of HOUSES) if (npcs.some(n => !n.visible && n.home === h.i)) {
+    ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = `600 ${S * .6}px Figtree, sans-serif`;
+    ctx.fillText('z z', (h.x + 1.1) * S, (h.y - 1.6 - .2 * Math.sin(simTime * 2)) * S);
+  }
+  // birds
+  for (const b of birds) {
+    const a = Math.atan2(b.vy, b.vx), w = .35 + .15 * Math.sin(b.flap);
+    ctx.save(); ctx.translate((b.x + .6) * S, (b.y + .9) * S); ctx.rotate(a);
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.beginPath(); ctx.moveTo(.3 * S, 0); ctx.lineTo(-.25 * S, w * S); ctx.lineTo(-.1 * S, 0); ctx.lineTo(-.25 * S, -w * S); ctx.fill();
+    ctx.restore();
+    ctx.save(); ctx.translate(b.x * S, b.y * S); ctx.rotate(a);
+    ctx.fillStyle = '#2f3a40'; ctx.beginPath(); ctx.moveTo(.3 * S, 0); ctx.lineTo(-.25 * S, w * S); ctx.lineTo(-.1 * S, 0); ctx.lineTo(-.25 * S, -w * S); ctx.fill();
+    ctx.restore();
+  }
+  // night
+  const el = Math.sin((world.hour - 6) / 12 * Math.PI), dark = clamp(-el * 1.6 + .15, 0, .55);
+  if (dark > 0) {
+    rect(ctx, 0, 0, W, H, `rgba(18,28,58,${dark})`);
+    for (const h of HOUSES) circle(ctx, h.x, h.y + 1.6, .9, `rgba(255,200,100,${dark * .7})`);
+    for (const f of alive()) circle(ctx, f.x, f.y, 4, `rgba(255,140,40,${dark * .5})`);
+    if (world.festival) circle(ctx, 24, 16, 5, `rgba(255,200,90,${dark * .4})`);
+  }
+}
+
+/* ---------- input ---------- */
+let tool = 'select', selected = null, hover = null;
+function toWorld(e) { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left - ox) / S, y: (e.clientY - r.top - oy) / S }; }
+document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => {
+  tool = b.dataset.tool;
+  document.querySelectorAll('[data-tool]').forEach(o => o.setAttribute('aria-pressed', o === b));
+  cv.classList.toggle('placing', tool !== 'select');
+});
+$('#festBtn').onclick = () => setFestival(!world.festival);
+$('#shortBtn').onclick = () => setShortage(!world.shortage);
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll('[data-speed]').forEach(o => o.setAttribute('aria-pressed', o === b));
+});
+cv.addEventListener('pointermove', e => hover = toWorld(e));
+cv.addEventListener('pointerleave', () => hover = null);
+cv.addEventListener('click', e => {
+  const p = toWorld(e);
+  if (p.x < 1 || p.y < 1 || p.x > W - 1 || p.y > H - 1) return;
+  if (tool === 'select') {
+    const n = npcs.filter(o => o.visible).sort((a, b) => dist(a.x, a.y, p.x, p.y) - dist(b.x, b.y, p.x, p.y))[0];
+    select(n && dist(n.x, n.y, p.x, p.y) < 1.2 ? n : null);
+    return;
+  }
+  if (tool === 'erase') {
+    let best = null, bd = 2;
+    for (const it of items) { const d = dist(it.x, it.y, p.x, p.y); if (d < bd) { bd = d; best = it; } }
+    if (best) removeItem(best);
+    return;
+  }
+  if (!cellFree(p.x, p.y)) return;
+  if (tool === 'fire') startFire(p.x, p.y);
+  if (tool === 'rock') addBlocking('rock', p.x, p.y, 1, '🪨 An obstacle was placed. Villagers are rerouting.');
+  if (tool === 'well') addBlocking('well', p.x, p.y, .9, '⛲ A new well was built. It is now an evening gathering spot.');
+  if (tool === 'food') { items.push({ id: uid++, type: 'food', x: p.x, y: p.y, servings: 3 }); log('🧺 Food was left out. Hungry villagers will come for it.'); }
+});
+
+/* ---------- inspector ---------- */
+npcs.forEach(n => {
+  const b = document.createElement('button'); b.className = 'chip';
+  b.innerHTML = `<span class="dot" style="background:${n.color}"></span>${n.name}`;
+  b.onclick = () => select(selected === n ? null : n);
+  n.chip = b; $('#chips').appendChild(b);
+});
+function select(n) { selected = n; npcs.forEach(o => o.chip.setAttribute('aria-pressed', o === n)); renderInspector(); }
+const ACT = { walk: 'Walking', idle: 'Standing around', work: 'Working', eat: 'Eating', forage: 'Foraging', sleep: 'Indoors, asleep', social: 'Socializing', dance: 'Dancing', shelter: 'Sheltering', douse: 'Fighting the fire' };
+const bar = (l, v, c) => `<div class="need"><span>${l}</span><div class="track"><div class="fill" style="width:${v}%;background:${c}"></div></div><span>${Math.round(v)}</span></div>`;
+function renderInspector() {
+  const n = selected, d = $('#detail');
+  if (!n) { d.innerHTML = '<p class="empty">Click a villager on the map, or a name above, to see their needs, goal, relationships and memories.</p>'; return; }
+  const rels = Object.entries(n.rel).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id, v]) => bar(npcs[id].name, v, npcs[id].color)).join('');
+  d.innerHTML = `
+    <div class="who"><span class="dot" style="background:${n.color}"></span><div><h2>${n.name}</h2><p>${ROLE[n.role]}, lives in house ${n.home + 1}</p></div></div>
+    <dl><dt>State</dt><dd>${ACT[n.act]}</dd><dt>Goal</dt><dd>${n.goal ? n.goal.label : 'Deciding'}</dd>
+    <dt>Decision</dt><dd>${n.lastCmd ? `<code>${n.lastCmd}</code>` : 'Following routine'}</dd></dl>
+    ${bar('Hunger', n.hunger, '#c9502a')}${bar('Energy', n.energy, '#3f8f5a')}${bar('Social', n.social, '#4a78b0')}
+    <h3 class="sub">Closest relationships</h3>${rels}
+    <h3 class="sub">Episodic memory</h3>
+    ${n.memory.length ? `<ul class="mem">${n.memory.map(m => `<li><time>${m.t}</time>${m.text}</li>`).join('')}</ul>` : '<p class="empty">Nothing memorable yet. Try starting a fire nearby.</p>'}`;
+}
+select(null);
+
+/* ---------- loop ---------- */
+let last = performance.now(), uiT = 0;
+function step(dt) {
+  simTime += dt;
+  world.hour += dt * 24 / 150;
+  if (world.hour >= 24) { world.hour -= 24; world.day++; }
+  if (world.festival && (world.festival -= dt) <= 0) setFestival(false);
+  if (world.shortage && (world.shortage -= dt) <= 0) setShortage(false);
+  for (const f of fires) {
+    if (f.alive) { f.life -= dt; if (f.hp <= 0) endFire(f, true); else if (f.life <= 0) endFire(f, false); }
+    else { f.fade = Math.max(0, f.fade - dt); if (f.fade === 0 && !f.gone) { f.gone = true; setTimeout(() => removeItem(f), 4000); } }
+  }
+  for (const n of npcs) {
+    const asleep = n.act === 'sleep';
+    n.hunger = clamp(n.hunger + dt * (asleep ? .12 : .45) * (world.shortage ? 2 : 1), 0, 100);
+    n.energy = clamp(n.energy + dt * (asleep ? 3 : n.act === 'work' || n.act === 'dance' ? -.5 : -.25), 0, 100);
+    n.social = clamp(n.social + dt * (asleep ? .05 : .3), 0, 100);
+    if (n.act === 'eat') n.hunger = clamp(n.hunger - dt * 16, 0, 100);
+    if (n.act === 'forage') n.hunger = clamp(n.hunger - dt * 5, 0, 100);
+
+    if ((n.think -= dt) <= 0) {
+      n.think = .4;
+      const g = decide(n);
+      if (g.key !== n.goalKey) setGoal(n, g);
+      else if (g.dyn && dist(g.x, g.y, n.tx, n.ty) > 1.5) { n.goal = g; n.path = findPath(n.x, n.y, g.x, g.y); n.tx = g.x; n.ty = g.y; }
+      if ((n.act === 'social' || n.act === 'dance') && rnd() < .12) {
+        const o = npcs.find(o => o !== n && (o.act === 'social' || o.act === 'dance') && dist(o.x, o.y, n.x, n.y) < 3.5);
+        if (o) { say(n, n.act === 'dance' ? 'What a party!' : rnd() < .3 ? `Hi ${o.name}!` : CHAT[Math.floor(rnd() * CHAT.length)]); bump(n, o, 1); n.social = Math.max(0, n.social - 10); }
+      }
+      if (n.act === 'douse' && rnd() < .2) say(n, 'Stand back!');
+    }
+    if (n.help && dist(n.help.victim.x, n.help.victim.y, n.x, n.y) < 1.6) {
+      const v = n.help.victim;
+      remember(n, `Helped ${v.name} escape the fire`); remember(v, `${n.name} came to help during the fire`);
+      bump(n, v, 12); say(n, `${v.name}, this way!`);
+      log(`🤝 ${n.name} reached ${v.name} and they left together.`);
+      n.safe[n.help.fire.id] = v.safe[n.help.fire.id] || pickSafe(n, n.help.fire);
+      n.help.fire.fled.add(n); n.help = null; n.goalKey = null;
+    }
+    if (n.act === 'walk') {
+      if (n.path.length) {
+        const w = n.path[0], dx = w.x - n.x, dy = w.y - n.y, d = Math.hypot(dx, dy);
+        if (d < .1) n.path.shift();
+        else { const s = Math.min(d, n.speed * (n.goal.run ? 1.8 : 1) * dt); n.x += dx / d * s; n.y += dy / d * s; n.face = Math.atan2(dx, dy); }
+        if (!n.path.length) arrive(n);
+      } else if (dist(n.tx, n.ty, n.x, n.y) < .8) arrive(n);
+      else if ((n.stuck += dt) > 1.5) n.goalKey = null;
+    }
+    if (n.act === 'douse' && n.goal.fire && n.goal.fire.alive && dist(n.x, n.y, n.goal.fire.x, n.goal.fire.y) < 3) {
+      n.goal.fire.hp -= dt; n.face = Math.atan2(n.goal.fire.x - n.x, n.goal.fire.y - n.y);
+    }
+    if (n.visible) for (const o of npcs) {
+      if (o === n || !o.visible) continue;
+      const dx = n.x - o.x, dy = n.y - o.y, d = Math.hypot(dx, dy);
+      if (d < .75 && d > .001) { const nx = n.x + dx / d * (.75 - d) * .5, ny = n.y + dy / d * (.75 - d) * .5; if (cellFree(nx, ny)) { n.x = nx; n.y = ny; } }
+    }
+    if (n.sayT > 0) n.sayT -= dt;
+  }
+  updateBirds(dt);
+}
+function frame(now) {
+  const rdt = Math.min(.05, (now - last) / 1000); last = now;
+  if (speed) step(rdt * speed);
+  draw();
+  if ((uiT -= rdt) <= 0) { uiT = .3; renderInspector(); $('#clock').textContent = `Day ${world.day}, ${clockStr()}`; }
+  requestAnimationFrame(frame);
+}
+new ResizeObserver(resize).observe($('#stage'));
+resize();
+log('The village wakes up. Try the world editor on the left.');
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

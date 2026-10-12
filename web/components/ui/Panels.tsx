@@ -145,6 +145,8 @@ export function PerfOverlay() {
   const { brainMs, navMs, boidsMs } = sim.perf;
   const n = sim.flock.birds.length;
   const color = fps >= 55 ? 'var(--moss)' : fps >= 30 ? '#d49a2a' : 'var(--ember)';
+  const minutes = Math.max(sim.simTime / 60, 1 / 60);
+  const switches = sim.stats.goalSwitches / sim.villagers.length / minutes;
   return (
     <div className="overlay perf">
       <div>
@@ -155,6 +157,10 @@ export function PerfOverlay() {
       </div>
       <div>
         {sim.villagers.length} villagers · {n} birds ({sim.flock.grid ? 'grid' : 'all pairs'}, {n ? Math.round(sim.flock.pairChecks / n) : 0} checks/bird) · {calls} draw calls · {(triangles / 1000).toFixed(0)}k tris
+      </div>
+      <div>
+        NavMesh <b>{sim.nav.obstacleCount}</b> obstacles · rebuild <b>{sim.stats.lastRebuildMs.toFixed(1)}</b> ms · goal switches/min <b>{switches.toFixed(1)}</b> · stuck fixes <b>{sim.stats.stuckRecoveries}</b>
+        {sim.stats.lastTimeToSafety != null && <> · time to safety <b>{sim.stats.lastTimeToSafety.toFixed(1)} s</b></>}
       </div>
     </div>
   );
@@ -198,19 +204,6 @@ export function PlannerPanel() {
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-export function StatsOverlay() {
-  const sim = useSim();
-  useTick(2);
-  const minutes = Math.max(sim.simTime / 60, 1 / 60);
-  const switches = sim.stats.goalSwitches / sim.villagers.length / minutes;
-  return (
-    <div className="overlay stats">
-      NavMesh <b>{sim.nav.obstacleCount}</b> obstacles · rebuild <b>{sim.stats.lastRebuildMs.toFixed(1)} ms</b> · goal switches/min <b>{switches.toFixed(1)}</b> · stuck fixes <b>{sim.stats.stuckRecoveries}</b>
-      {sim.stats.lastTimeToSafety != null && <> · time to safety <b>{sim.stats.lastTimeToSafety.toFixed(1)} s</b></>}
     </div>
   );
 }

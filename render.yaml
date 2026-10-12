@@ -1,0 +1,28 @@
+# Render Blueprint for the planner service (Render dashboard > New > Blueprint > this repo).
+# Render asks for the two secrets on first deploy; they never live in the repo.
+# The free plan sleeps after ~15 idle minutes; the first visitor wakes it in about a minute,
+# and the village uses its in-browser planner until the connection is up.
+services:
+  - type: web
+    name: living-village-planner
+    runtime: python
+    plan: free
+    rootDir: server
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --ws-max-size 65536
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.7
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ANTHROPIC_WORKSPACE_ID
+        sync: false
+      # The GitHub Pages origin (scheme + host, no path). Other sites' browsers are refused.
+      - key: LV_ALLOWED_ORIGINS
+        value: https://harjeet-chahal.github.io
+      # Spend caps: over either one, the rule-based planner answers and nothing is billed.
+      - key: LV_LLM_PER_CLIENT
+        value: "20"
+      - key: LV_LLM_PER_HOUR
+        value: "120"

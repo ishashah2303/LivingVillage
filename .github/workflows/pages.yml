@@ -1,6 +1,8 @@
 # Builds the 3D app as a static site and publishes it to GitHub Pages.
 # One-time setup: Settings > Pages > Source: "GitHub Actions" (the repo must be public on a free plan).
-# The live site has no planner server, so it uses the in-browser rule-based planner.
+# Optional: set the repository variable PLANNER_URL (Settings > Secrets and variables > Actions >
+# Variables), e.g. wss://living-village-planner.onrender.com/ws/planner, to connect the site to the
+# hosted Claude planner. Without it, the site uses the in-browser rule-based planner.
 name: Deploy to GitHub Pages
 
 on:
@@ -36,6 +38,7 @@ jobs:
         env:
           STATIC_EXPORT: '1'
           BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_PLANNER_URL: ${{ vars.PLANNER_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/out

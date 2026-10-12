@@ -1,35 +1,45 @@
 """Wire format between the browser simulation and the planner (mirrors web/sim/planner.ts)."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 Verb = Literal["EVACUATE", "INVESTIGATE", "HELP_AGENT"]
+
+# Size caps: the report becomes the LLM prompt, so a public endpoint must bound it.
+Name = Annotated[str, Field(max_length=40)]
 
 
 class FireInfo(BaseModel):
     id: int
     x: float
     z: float
-    place: str
+    place: Name
 
 
 class SpotInfo(BaseModel):
-    cmd: str
-    name: str
+    cmd: Name
+    name: Name
     x: float
     z: float
 
 
 class AgentInfo(BaseModel):
     id: int
-    name: str
-    role: str
+    name: Name
+    role: Name
     x: float
     z: float
-    activity: str
-    fleeingTo: str | None = None
+    activity: Name
+    fleeingTo: str | None = Field(default=None, max_length=40)
     rel: dict[str, float] = Field(default_factory=dict)
+
+    @field_validator("rel")
+    @classmethod
+    def _few_relationships(cls, rel: dict[str, float]) -> dict[str, float]:
+        if len(rel) > 32 or any(len(k) > 40 for k in rel):
+            raise ValueError("at most 32 relationships with short names")
+        return rel
 
 
 class SituationReport(BaseModel):
@@ -37,11 +47,11 @@ class SituationReport(BaseModel):
 
     version: int
     day: int
-    clock: str
-    trigger: str
-    fires: list[FireInfo]
-    spots: list[SpotInfo]
-    agents: list[AgentInfo]
+    clock: str = Field(max_length=10)
+    trigger: Name
+    fires: list[FireInfo] = Field(max_length=16)
+    spots: list[SpotInfo] = Field(max_length=32)
+    agents: list[AgentInfo] = Field(max_length=32)
 
 
 class Command(BaseModel):
@@ -56,7 +66,7 @@ class Command(BaseModel):
 
 class SituationMessage(BaseModel):
     type: Literal["situation"]
-    requestId: str
+    requestId: str = Field(max_length=64)
     latencyMs: int = Field(default=0, ge=0, le=15_000)
     report: SituationReport
 

@@ -8,7 +8,9 @@ import type { PlannerTransport } from './simulation';
 
 type Pending = { resolve: (r: PlanResult) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> };
 
-export const DEFAULT_PLANNER_URL = process.env.NEXT_PUBLIC_PLANNER_URL ?? 'ws://localhost:8000/ws/planner';
+export const DEFAULT_PLANNER_URL = process.env.NEXT_PUBLIC_PLANNER_URL || 'ws://localhost:8000/ws/planner';
+/** The server gives up on Claude after 30 s and answers with its rules, so this always outlasts it. */
+const LLM_TIMEOUT_MS = 35_000;
 
 export class PlannerClient implements PlannerTransport {
   serverInfo: { planner: string; version: string; llm: boolean } | null = null;
@@ -54,11 +56,12 @@ export class PlannerClient implements PlannerTransport {
     ws.onmessage = e => {
       const msg = JSON.parse(String(e.data));
       if (msg.type === 'hello') this.serverInfo = { planner: msg.planner, version: msg.version, llm: !!msg.llm };
-      if (msg.type !== 'plan') return;
+      if (msg.type !== 'plan' && msg.type !== 'error') return;
       const p = this.pending.get(msg.requestId);
       if (!p) return;
       this.pending.delete(msg.requestId);
       clearTimeout(p.timer);
+      if (msg.type === 'error') return p.reject(new Error(`planner refused: ${msg.detail}`));
       p.resolve({ source: 'server', planner: msg.planner, commands: msg.commands, summary: msg.summary, notes: msg.notes });
     };
     ws.onclose = () => {
@@ -90,7 +93,7 @@ export class PlannerClient implements PlannerTransport {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
         reject(new Error('planner timed out'));
-      }, latencyMs + 8000);
+      }, this.serverInfo?.llm ? LLM_TIMEOUT_MS : latencyMs + 8000);
       this.pending.set(requestId, { resolve, reject, timer });
       ws.send(JSON.stringify({ type: 'situation', requestId, latencyMs, report }));
     });

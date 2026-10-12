@@ -16,7 +16,7 @@ A 3D vertical slice on the stack from our proposal:
 - **Boids:** 30 birds in 3D with separation, alignment and cohesion, a day circuit and night roost, fire avoidance and a startle response. Neighbor search uses a uniform spatial grid (counting sort into typed arrays, no per-step allocation); the O(n²) all-pairs scan stays available as a switch for the stress test.
 - **LLM planner (Claude):** a FastAPI service over WebSocket. On big events the browser sends a situation report; Claude (`claude-opus-5-5` through the Anthropic API) answers with `EVACUATE(place)`, `INVESTIGATE(Fire#n)` and `HELP_AGENT(name)`, each with a one-sentence reason shown in the inspector. Commands are grounded three times: structured output whose schema enumerates only the live villager, spot and fire names; a server-side check that verb, agent and target fit; and a client-side **safety gate** (still safe, reachable, not expired) because the answer arrives seconds later for a world that may have moved on. Without an API key, on any API error, or with the server offline, a rule-based planner answers instead (on the server, or the same rules in the browser), so the village never waits on the LLM.
 - **Performance overlay and stress test:** FPS and frame time, simulation cost per system (brains, navmesh + crowd, boids), draw calls; buttons to grow the flock to 2000 birds, toggle the boids grid, and drop bursts of navmesh obstacles.
-- **Tests:** 20 simulation tests (behavior-tree semantics, planner and gate, headless scenario runs on the real WASM navmesh, a full-day soak, boids grid equivalence, stress actions) and 10 server tests (rule planner, LLM prompt/schema/grounding with a fake client, fallback on refusal or error).
+- **Tests:** 20 simulation tests (behavior-tree semantics, planner and gate, headless scenario runs on the real WASM navmesh, a full-day soak, boids grid equivalence, stress actions) and 16 server tests (rule planner, LLM prompt/schema/grounding with a fake client, fallback on refusal or error, spend limits, origin check, size caps).
 
 ## Repository
 
@@ -100,16 +100,28 @@ The fast loop never waits for the server. Reflexes act immediately; the planner'
 ```bash
 cd web && npm test              # 20 simulation tests (Vitest, real WASM navmesh in Node)
 cd web && npm run typecheck
-cd server && uv run pytest      # 10 planner and API tests (no API key needed)
+cd server && uv run pytest      # 16 planner, API and spend-limit tests (no API key needed)
 ```
 
-## Static hosting
+## Hosting
 
-The app can be exported as a static site (for example to GitHub Pages, like the mockup). Without the server, it uses the in-browser planner.
+**Web app (GitHub Pages).** `.github/workflows/pages.yml` tests, builds the static export and publishes it on every push to `main` (Settings > Pages > Source: GitHub Actions). To build it by hand:
 
 ```bash
-cd web && STATIC_EXPORT=1 BASE_PATH=/living-village npm run build   # output in web/out/
+cd web && STATIC_EXPORT=1 BASE_PATH=/LivingVillage npm run build   # output in web/out/
 ```
+
+**Planner (Render).** `render.yaml` is a Render Blueprint for `server/`: New > Blueprint, pick this repo, and enter `ANTHROPIC_API_KEY` (and `ANTHROPIC_WORKSPACE_ID` if needed) when asked. Then set the repository variable `PLANNER_URL` to `wss://<service>.onrender.com/ws/planner` and re-run the Pages workflow so the site connects to it.
+
+A public planner spends real money, so the server protects the key:
+
+- Claude calls are capped per client and per hour for the whole service (`LV_LLM_PER_CLIENT`, `LV_LLM_PER_HOUR`); over a cap the rule-based planner answers and nothing is billed.
+- Browsers may only connect from `LV_ALLOWED_ORIGINS` (plus localhost); situation reports are size-capped, since they become the prompt; each connection may have 4 plans in flight.
+- Also set a monthly spend limit for the API key in the Anthropic Console.
+
+`server/requirements.txt` is exported from `uv.lock` for hosts that use pip; after changing dependencies, run `uv export --frozen --no-dev --no-hashes --no-emit-project -o requirements.txt`.
+
+The free Render plan sleeps after about 15 idle minutes. The first visitor wakes it in about a minute; until then the village runs on the in-browser planner.
 
 ## Next
 

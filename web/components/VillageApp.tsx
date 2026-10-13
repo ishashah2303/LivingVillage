@@ -67,7 +67,6 @@ export default function VillageApp() {
           <Stage />
           <PlannerPanel />
           <PerfOverlay />
-          <div className="overlay help">Drag orbit · right-drag pan · scroll zoom · 1–6 tools · space pause · F follow · N navmesh</div>
         </main>
         <Inspector />
         <EventLog />

@@ -17,10 +17,15 @@ interface UIState {
   selected: number | null;
   follow: boolean;
   overlays: Overlays;
+  /** Expanded state of the scene overlays (collapsed to one-line pills by default). */
+  plannerOpen: boolean;
+  perfOpen: boolean;
   setTool: (t: Tool) => void;
   select: (id: number | null) => void;
   setFollow: (f: boolean) => void;
   toggleOverlay: (k: keyof Overlays) => void;
+  setPlannerOpen: (open: boolean) => void;
+  setPerfOpen: (open: boolean) => void;
 }
 
 export const useUI = create<UIState>(set => ({
@@ -28,10 +33,14 @@ export const useUI = create<UIState>(set => ({
   selected: 0,
   follow: false,
   overlays: { navmesh: false, obstacles: false, paths: true, perception: false },
+  plannerOpen: false,
+  perfOpen: false,
   setTool: tool => set({ tool }),
   select: selected => set({ selected }),
   setFollow: follow => set({ follow }),
   toggleOverlay: k => set(s => ({ overlays: { ...s.overlays, [k]: !s.overlays[k] } })),
+  setPlannerOpen: plannerOpen => set({ plannerOpen }),
+  setPerfOpen: perfOpen => set({ perfOpen }),
 }));
 
 export const SimContext = createContext<Simulation | null>(null);

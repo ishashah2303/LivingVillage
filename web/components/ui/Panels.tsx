@@ -18,13 +18,22 @@ export function Rich({ text }: { text: string }) {
 
 const SPEEDS: [number, string][] = [[0, 'Pause'], [1, '1×'], [3, '3×'], [10, '10×']];
 
+const KEYS: [string, string][] = [
+  ['1–6', 'pick a tool'],
+  ['Space', 'pause / resume'],
+  ['F', 'follow the selected villager'],
+  ['N', 'navmesh overlay'],
+  ['Esc', 'back to select'],
+  ['Drag', 'orbit · right-drag pan · scroll zoom'],
+];
+
 export function TopBar() {
   const sim = useSim();
   const refresh = useTick(4);
   return (
     <header className="top card">
       <h1>Living Village</h1>
-      <p>3D vertical slice · behavior trees · Recast/Detour · boids</p>
+      <p>behavior trees · Recast/Detour · boids · Claude planner</p>
       <span className="clock">Day {sim.day}, {sim.clock()}</span>
       <div className="seg" role="group" aria-label="Simulation speed">
         {SPEEDS.map(([s, label]) => (
@@ -33,50 +42,63 @@ export function TopBar() {
           </button>
         ))}
       </div>
+      <details className="keys">
+        <summary aria-label="Keyboard and mouse controls" title="Controls">?</summary>
+        <dl>
+          {KEYS.map(([k, what]) => (
+            <Fragment key={k}>
+              <dt><kbd>{k}</kbd></dt>
+              <dd>{what}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      </details>
     </header>
   );
 }
 
-const TOOLS: [Tool, string, string][] = [
-  ['select', '👆', 'Select villager'],
-  ['fire', '🔥', 'Start a fire'],
-  ['rock', '🪨', 'Drop obstacle'],
-  ['food', '🧺', 'Leave food'],
-  ['well', '⛲', 'Build a well'],
-  ['erase', '✖', 'Remove item'],
+const TOOLS: [Tool, string, string, string][] = [
+  ['select', '👆', 'Select', 'Select a villager'],
+  ['fire', '🔥', 'Fire', 'Start a fire'],
+  ['rock', '🪨', 'Obstacle', 'Drop an obstacle'],
+  ['food', '🧺', 'Food', 'Leave food'],
+  ['well', '⛲', 'Well', 'Build a well'],
+  ['erase', '✖', 'Remove', 'Remove an item'],
 ];
 
 export function Toolbar() {
   const sim = useSim();
-  const { tool, setTool, overlays, toggleOverlay, select } = useUI();
+  const { tool, setTool, overlays, toggleOverlay, select, setPerfOpen } = useUI();
   const refresh = useTick(4);
   return (
     <aside className="tools card" aria-label="World editor">
-      <h3>World editor</h3>
-      {TOOLS.map(([t, ic, label], i) => (
-        <button key={t} className={`tool${t === 'fire' ? ' fire' : ''}`} aria-pressed={tool === t} onClick={() => setTool(t)} title={`Shortcut: ${i + 1}`}>
-          <span className="ic">{ic}</span>
-          {label}
+      <h3 title="Pick a tool, then click the map. Every edit rebuilds only the navmesh tiles it touches, and villagers reroute.">World editor</h3>
+      <div className="tile-grid">
+        {TOOLS.map(([t, ic, label, long], i) => (
+          <button key={t} className={`tile${t === 'fire' ? ' fire' : ''}`} aria-pressed={tool === t} onClick={() => setTool(t)} title={`${long} (${i + 1})`}>
+            <span className="ic">{ic}</span>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <h3>Events</h3>
+      <div className="pair">
+        <button className={`tool${sim.festival > 0 ? ' on' : ''}`} onClick={() => (sim.setFestival(!(sim.festival > 0)), refresh())} title="Villagers gather to dance in the square">
+          <span className="ic">🎉</span>Festival
         </button>
-      ))}
-      <div className="sep" />
-      <button className={`tool${sim.festival > 0 ? ' on' : ''}`} onClick={() => (sim.setFestival(!(sim.festival > 0)), refresh())}>
-        <span className="ic">🎉</span>Hold a festival
-      </button>
-      <button className={`tool${sim.shortage > 0 ? ' on alert' : ''}`} onClick={() => (sim.setShortage(!(sim.shortage > 0)), refresh())}>
-        <span className="ic">🌾</span>Food shortage
-      </button>
-      <button
-        className="tool demo"
-        onClick={() => {
-          if (sim.startFireNear('Maya')) select(0);
-        }}
-      >
-        <span className="ic">▶</span>Demo: fire near Maya
+        <button className={`tool${sim.shortage > 0 ? ' on alert' : ''}`} onClick={() => (sim.setShortage(!(sim.shortage > 0)), refresh())} title="The market empties and hunger rises twice as fast">
+          <span className="ic">🌾</span>Shortage
+        </button>
+      </div>
+
+      <h3>Demos</h3>
+      <button className="tool demo" onClick={() => sim.startFireNear('Maya') && select(0)} title="A fire a few meters from Maya; watch her decide and the planner coordinate">
+        <span className="ic">▶</span>Fire near Maya
       </button>
       <button
         className="tool demo"
-        title="Hard problem 2: the planner answers after 4 s, but a second fire has started in the square meanwhile"
+        title="The planner answers late, and a second fire has started meanwhile: the safety gate rejects commands that are no longer safe"
         onClick={() => {
           sim.plannerLatencyMs = 4000;
           if (!sim.startFireNear('Maya')) return;
@@ -85,24 +107,27 @@ export function Toolbar() {
           setTimeout(() => sim.startFire({ x: 3.2, z: 3.4 }) ?? sim.startFire({ x: -3.4, z: 3.2 }), 800);
         }}
       >
-        <span className="ic">▶</span>Demo: stale plan
+        <span className="ic">▶</span>Stale plan
       </button>
-      <div className="sep" />
-      <StressControls />
-      <div className="sep" />
-      <h3>Debug overlays</h3>
-      {([
-        ['navmesh', 'NavMesh (Recast)'],
-        ['obstacles', 'TileCache obstacles'],
-        ['paths', 'Paths & corridors'],
-        ['perception', 'Perception radius'],
-      ] as const).map(([k, label]) => (
-        <label key={k} className="toggle">
-          <input type="checkbox" checked={overlays[k]} onChange={() => toggleOverlay(k)} />
-          {label}
-        </label>
-      ))}
-      <p className="hint">Pick a tool, then click the map. Every edit rebuilds only the navmesh tiles it touches, and villagers reroute.</p>
+
+      <details className="fold" onToggle={e => setPerfOpen((e.currentTarget as HTMLDetailsElement).open)}>
+        <summary>Stress test</summary>
+        <StressControls />
+      </details>
+      <details className="fold">
+        <summary>Debug overlays</summary>
+        {([
+          ['navmesh', 'NavMesh (Recast)'],
+          ['obstacles', 'TileCache obstacles'],
+          ['paths', 'Paths & corridors'],
+          ['perception', 'Perception radius'],
+        ] as const).map(([k, label]) => (
+          <label key={k} className="toggle">
+            <input type="checkbox" checked={overlays[k]} onChange={() => toggleOverlay(k)} />
+            {label}
+          </label>
+        ))}
+      </details>
     </aside>
   );
 }
@@ -116,7 +141,6 @@ function StressControls() {
   const n = sim.flock.birds.length;
   return (
     <>
-      <h3>Stress test</h3>
       <div className="seg stress" role="group" aria-label="Number of birds">
         {BIRD_COUNTS.map(c => (
           <button key={c} aria-pressed={n === c} onClick={() => (sim.setBirdCount(c), refresh())} title={`${c} birds`}>
@@ -128,82 +152,106 @@ function StressControls() {
         <input type="checkbox" checked={sim.flock.grid} onChange={() => ((sim.flock.grid = !sim.flock.grid), refresh())} />
         Boids spatial grid
       </label>
-      <button className="tool" onClick={() => (sim.scatterObstacles(20), refresh())}>
-        <span className="ic">🪨</span>Drop 20 obstacles
-      </button>
-      <button className="tool" onClick={() => (sim.clearObstacles(), refresh())}>
-        <span className="ic">🧹</span>Clear obstacles
-      </button>
+      <div className="pair">
+        <button className="tool" onClick={() => (sim.scatterObstacles(20), refresh())} title="Drop 20 obstacles at random spots">
+          <span className="ic">🪨</span>+20 rocks
+        </button>
+        <button className="tool" onClick={() => (sim.clearObstacles(), refresh())} title="Remove every obstacle">
+          <span className="ic">🧹</span>Clear
+        </button>
+      </div>
     </>
   );
 }
 
+const fpsColor = (fps: number) => (fps >= 55 ? 'var(--moss)' : fps >= 30 ? '#d49a2a' : 'var(--ember)');
+
 export function PerfOverlay() {
   const sim = useSim();
+  const { perfOpen, setPerfOpen } = useUI();
   useTick(4);
   const { fps, frameMs, worstMs, simMs, calls, triangles } = framePerf;
   const { brainMs, navMs, boidsMs } = sim.perf;
   const n = sim.flock.birds.length;
-  const color = fps >= 55 ? 'var(--moss)' : fps >= 30 ? '#d49a2a' : 'var(--ember)';
   const minutes = Math.max(sim.simTime / 60, 1 / 60);
   const switches = sim.stats.goalSwitches / sim.villagers.length / minutes;
   return (
-    <div className="overlay perf">
-      <div>
-        <b className="fps" style={{ color }}>{fps.toFixed(0)} FPS</b> · frame <b>{frameMs.toFixed(1)}</b> ms (worst {worstMs.toFixed(0)}) · sim <b>{simMs.toFixed(1)}</b> ms/frame
-      </div>
-      <div>
-        Per 30 Hz step: brains <b>{brainMs.toFixed(2)}</b> · navmesh + crowd <b>{navMs.toFixed(2)}</b> · boids <b>{boidsMs.toFixed(2)}</b> ms
-      </div>
-      <div>
-        {sim.villagers.length} villagers · {n} birds ({sim.flock.grid ? 'grid' : 'all pairs'}, {n ? Math.round(sim.flock.pairChecks / n) : 0} checks/bird) · {calls} draw calls · {(triangles / 1000).toFixed(0)}k tris
-      </div>
-      <div>
-        NavMesh <b>{sim.nav.obstacleCount}</b> obstacles · rebuild <b>{sim.stats.lastRebuildMs.toFixed(1)}</b> ms · goal switches/min <b>{switches.toFixed(1)}</b> · stuck fixes <b>{sim.stats.stuckRecoveries}</b>
-        {sim.stats.lastTimeToSafety != null && <> · time to safety <b>{sim.stats.lastTimeToSafety.toFixed(1)} s</b></>}
-      </div>
+    <div className={`overlay perf${perfOpen ? ' open' : ''}`}>
+      <button className="pill" onClick={() => setPerfOpen(!perfOpen)} aria-expanded={perfOpen} title="Performance details">
+        <b className="fps" style={{ color: fpsColor(fps) }}>{fps.toFixed(0)} FPS</b>
+        <span>{frameMs.toFixed(1)} ms</span>
+        {n !== BOIDS.count && <span>{n} birds</span>}
+        <span className="chev">{perfOpen ? '▾' : '▸'}</span>
+      </button>
+      {perfOpen && (
+        <div className="details">
+          <div>
+            frame <b>{frameMs.toFixed(1)}</b> ms (worst {worstMs.toFixed(0)}) · sim <b>{simMs.toFixed(1)}</b> ms/frame · {calls} draw calls · {(triangles / 1000).toFixed(0)}k tris
+          </div>
+          <div>
+            per 30 Hz step: brains <b>{brainMs.toFixed(2)}</b> · navmesh + crowd <b>{navMs.toFixed(2)}</b> · boids <b>{boidsMs.toFixed(2)}</b> ms
+          </div>
+          <div>
+            {sim.villagers.length} villagers · {n} birds ({sim.flock.grid ? 'grid' : 'all pairs'}, {n ? Math.round(sim.flock.pairChecks / n) : 0} checks/bird)
+          </div>
+          <div>
+            navmesh <b>{sim.nav.obstacleCount}</b> obstacles · rebuild <b>{sim.stats.lastRebuildMs.toFixed(1)}</b> ms · goal switches/min <b>{switches.toFixed(1)}</b> · stuck fixes <b>{sim.stats.stuckRecoveries}</b>
+            {sim.stats.lastTimeToSafety != null && <> · time to safety <b>{sim.stats.lastTimeToSafety.toFixed(1)} s</b></>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export function PlannerPanel() {
   const sim = useSim();
+  const { plannerOpen, setPlannerOpen } = useUI();
   const refresh = useTick(4);
   const status = sim.planner?.status() ?? 'offline';
   const info = (sim.planner as { serverInfo?: { planner: string; version: string; llm: boolean } | null } | null)?.serverInfo;
   const llm = status === 'online' && !!info?.llm;
   const color = status === 'online' ? '#3f9a5a' : status === 'connecting' ? '#d49a2a' : '#c9502a';
+  const label = llm ? 'Claude planner' : status === 'online' ? 'Server planner' : status === 'connecting' ? 'Connecting…' : 'Local planner';
+  const last = sim.lastPlan;
   return (
-    <div className="overlay planner">
-      <div className="row">
+    <div className={`overlay planner${plannerOpen ? ' open' : ''}`}>
+      <button className="pill" onClick={() => setPlannerOpen(!plannerOpen)} aria-expanded={plannerOpen} title="Planner details">
         <span className="status" style={{ background: color }} />
-        <strong>
-          {llm ? 'Planner: Claude via FastAPI' : status === 'online' ? 'Planner: FastAPI server' : status === 'connecting' ? 'Connecting to planner…' : 'Planner: in-browser fallback'}
-        </strong>
-      </div>
-      <div style={{ color: 'var(--muted)', marginTop: 2 }}>
-        {status === 'online' && info ? `${info.planner} · v${info.version} · WebSocket` : 'server offline, same rules run locally'}
-      </div>
-      {llm ? (
-        <p style={{ color: 'var(--muted)', margin: '8px 0 0' }}>Real LLM latency: every fire triggers a Claude call; reflexes act while it thinks.</p>
-      ) : (
-        <label>
-          Simulated LLM latency: <b>{(sim.plannerLatencyMs / 1000).toFixed(1)} s</b>
-          <input
-            type="range" min={0} max={6000} step={250} value={sim.plannerLatencyMs}
-            onChange={e => ((sim.plannerLatencyMs = Number(e.target.value)), refresh())}
-          />
-        </label>
-      )}
-      <div style={{ marginTop: 4 }}>
+        <strong>{label}</strong>
         {sim.pendingPlans > 0 ? (
-          <span className="pending">⏳ {sim.pendingPlans} plan in flight; reflexes are acting meanwhile</span>
+          <span className="pending">thinking…</span>
         ) : (
-          <span style={{ color: 'var(--muted)' }}>
-            Commands: <b style={{ color: 'var(--moss)' }}>{sim.stats.accepted} accepted</b> · <b style={{ color: 'var(--ember)' }}>{sim.stats.rejected} rejected</b>
+          <span className="counts">
+            <b className="ok">{sim.stats.accepted} ✓</b> <b className="no">{sim.stats.rejected} ✗</b>
           </span>
         )}
-      </div>
+        <span className="chev">{plannerOpen ? '▾' : '▸'}</span>
+      </button>
+      {plannerOpen && (
+        <div className="details">
+          <div className="muted">
+            {status === 'online' && info ? `${info.planner} · v${info.version} · WebSocket` : 'Server offline: the same rules run in the browser.'}
+          </div>
+          {llm ? (
+            <p className="muted">Every fire triggers a Claude call; villagers act on reflexes while it thinks.</p>
+          ) : (
+            <label>
+              Simulated LLM latency: <b>{(sim.plannerLatencyMs / 1000).toFixed(1)} s</b>
+              <input
+                type="range" min={0} max={6000} step={250} value={sim.plannerLatencyMs}
+                onChange={e => ((sim.plannerLatencyMs = Number(e.target.value)), refresh())}
+              />
+            </label>
+          )}
+          {last && (
+            <p className="last">
+              <span className="muted">Last plan ({last.latencyS.toFixed(1)} s, {last.accepted} accepted{last.rejected ? `, ${last.rejected} rejected` : ''}):</span>{' '}
+              {last.summary || `${last.planner}.`}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -279,7 +327,7 @@ export function Inspector() {
           </h3>
           <ul className="bt">
             {flat
-              .filter(n => n.depth <= 1 || (n.parent != null && v.trace.has(n.parent)))
+              .filter(n => n.depth <= 1 || (n.parent != null && path.includes(n.parent)))
               .map(n => {
                 const s = v.trace.get(n.id);
                 const onPath = path.includes(n.id);
@@ -323,9 +371,7 @@ export function EventLog() {
   useTick(4);
   return (
     <section className="logbox card" aria-label="Event log">
-      <h3>
-        Village log <small>fixed step {Math.round(1 / DT)} Hz · planner replies are validated before use</small>
-      </h3>
+      <h3 title={`Fixed step ${Math.round(1 / DT)} Hz; planner replies are validated before use`}>Village log</h3>
       <ul className="log">
         {sim.log.map(l => (
           <li key={l.id} className={l.kind}>

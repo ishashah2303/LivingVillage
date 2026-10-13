@@ -88,6 +88,8 @@ export class Simulation implements GateWorld {
   log: LogEntry[] = [];
   stats: SimStats = { goalSwitches: 0, stuckRecoveries: 0, accepted: 0, rejected: 0, rebuilds: 0, lastRebuildMs: 0, lastTimeToSafety: null };
   perf: StepPerf = { brainMs: 0, navMs: 0, boidsMs: 0 };
+  /** The most recent planner reply, for the planner overlay. */
+  lastPlan: { planner: string; summary: string; latencyS: number; accepted: number; rejected: number } | null = null;
   /** 0..1 progress between the last two fixed steps, for render interpolation. */
   alpha = 0;
   private acc = 0;
@@ -856,14 +858,18 @@ export class Simulation implements GateWorld {
     );
     for (const note of res.notes ?? []) this.log_(`Planner note: ${note}.`, 'nav');
     if (res.summary) this.log_(`🧠 Plan: ${res.summary}`, 'plan');
+    const last = { planner: res.planner, summary: res.summary ?? '', latencyS: latencyMs / 1000, accepted: 0, rejected: 0 };
+    this.lastPlan = last;
     for (const c of res.commands) {
       const verdict = validateCommand(this, c, latencyMs / 1000);
       if (!verdict.ok) {
         this.stats.rejected++;
+        last.rejected++;
         this.log_(`✗ Rejected \`${c.verb}(${c.arg})\` for ${c.agent}: ${verdict.reason}.`, 'reject');
         continue;
       }
       this.stats.accepted++;
+      last.accepted++;
       this.applyCommand(c, latencyMs, res.planner);
       this.log_(`✓ ${c.agent}: \`${c.verb}(${c.arg})\` (${c.reason}).`, 'plan');
     }

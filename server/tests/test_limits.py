@@ -37,7 +37,7 @@ def test_over_budget_answers_with_rules_without_calling_claude(monkeypatch):
 
     monkeypatch.setattr(main, "llm", Boom())
     monkeypatch.setattr(main, "budget", LLMBudget(per_client=0, total=10))
-    name, cmds, _, notes = asyncio.run(main.make_plan(report(), client="x"))
+    name, cmds, _, notes, _ = asyncio.run(main.make_plan(report(), client="x"))
     assert name == "Rule-based planner" and len(cmds) == 5 and "limit" in notes[0]
 
 

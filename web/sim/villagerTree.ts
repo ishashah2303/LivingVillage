@@ -17,6 +17,7 @@ export const villagerTree = Selector<Ctx>('root', 'Villager brain', [
     Selector('respond', 'Respond', [
       Sequence('guardDuty', 'Guard duty', [
         Condition('isGuard', 'Am I the guard?', c => c.v.role === 'guard'),
+        Condition('fitToFight', 'Healthy enough to fight it? (above 35)', c => c.v.health > 35),
         Action('douse', 'Put out the fire', c => c.sim.actDouse(c.v)),
       ]),
       Action('flee', 'Flee to a safe spot', c => c.sim.actFlee(c.v)),

@@ -5,7 +5,16 @@ Visual Computing course project, Group JJ: Harjeet Singh Chahal (hc1242, group l
 
 **Pillars:** NPC AI / behavior trees · pathfinding and navigation (Recast/Detour) · swarm / boids.
 
-## Status (stage 3: MVP)
+## Status (stage 4: alpha, MVP 2.0)
+
+A complete game loop around the stage 3 slice:
+
+- **Start menu** over the live village: pick *Fire Season* (challenge) or *Sandbox*, and the planner's LLM backbone (Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, or rules only).
+- **Fire Season:** hold out 4 minutes until the rains come. A director starts fires faster and faster, unattended fires spread, smoke hurts villagers and a food shortage hits midway. The player has water buckets, food baskets and an alarm bell; the HUD shows time left, village integrity, who is hurt and what is burning. Win when the rains come (1-3 stars); lose at 0% integrity or 3 villagers hurt.
+- **End screen** with the score, fires put out, planner commands accepted / rejected, mean planner latency and LLM cost; *Play again* or *Main menu* (every game gets a fresh simulation; the old navmesh is freed).
+- **Backbone benchmark** (`server/bench/`): the same emergencies, exported from real simulation runs, planned by each model; see `server/bench/results.md`.
+
+### Stage 3 (MVP)
 
 A 3D vertical slice on the stack from our proposal:
 
@@ -56,7 +65,8 @@ cd web && npm run demo
 
 ### Controls
 
-- **World editor:** select a villager, start a fire, drop an obstacle, leave food, build a well, remove an item; hold a festival or cause a food shortage.
+- **Fire Season:** `1` select, `2` water (click a fire; two buckets put one out), `3` food, `B` ring the alarm bell, `Space` pause.
+- **World editor (Sandbox):** select a villager, start a fire, drop an obstacle, leave food, build a well, remove an item; hold a festival or cause a food shortage.
 - **Demo: fire near Maya** starts the scripted scenario and selects Maya. **Demo: stale plan** sets the planner latency to 4 s and starts a second fire while the plan is in flight, so the safety gate rejects commands that are no longer safe.
 - **Stress test:** flock size 30 / 250 / 500 / 1k / 2k, boids spatial grid on/off, drop 20 obstacles at random, clear obstacles. Watch the performance overlay (bottom left).
 - **Debug overlays:** navmesh, TileCache obstacles, paths and DetourCrowd corridors, perception radius.
@@ -84,7 +94,8 @@ The fast loop never waits for the server. Reflexes act immediately; the planner'
 
 | File | Role |
 | --- | --- |
-| `web/sim/simulation.ts` | World state, fixed 30 Hz step, events, needs, goals, movement, planner round-trips |
+| `web/sim/simulation.ts` | World state, fixed 30 Hz step, events, needs, health, fire spread, goals, movement, planner round-trips |
+| `web/sim/game.ts` | Game loop: modes, Fire Season director, player tools, win / loss |
 | `web/sim/villagerTree.ts` | The villager behavior tree |
 | `web/sim/bt.ts` | Behavior-tree library (selector, sequence, condition, action, live trace) |
 | `web/sim/nav.ts` | Recast/Detour wrapper: TileCache navmesh, obstacles, DetourCrowd, path queries |
@@ -98,9 +109,17 @@ The fast loop never waits for the server. Reflexes act immediately; the planner'
 ## Tests
 
 ```bash
-cd web && npm test              # 20 simulation tests (Vitest, real WASM navmesh in Node)
+cd web && npm test              # 31 simulation tests (Vitest, real WASM navmesh in Node), incl. whole games played headless
 cd web && npm run typecheck
-cd server && uv run pytest      # 16 planner, API and spend-limit tests (no API key needed)
+cd server && uv run pytest      # 18 planner, API and spend-limit tests (no API key needed)
+```
+
+LLM backbone benchmark (spends real API money, about $0.80 for the default run):
+
+```bash
+cd web && LV_EXPORT_SCENARIOS=1 npx vitest run sim/exportScenarios.test.ts   # refresh server/bench/scenarios.json
+cd server && uv run python -m bench.run_bench --dry-run                     # rules only, free
+cd server && uv run python -m bench.run_bench --reps 2                      # all models; writes results.md / results.json
 ```
 
 ## Hosting

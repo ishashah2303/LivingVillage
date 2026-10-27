@@ -9,11 +9,23 @@ import type { PlannerTransport } from './simulation';
 type Pending = { resolve: (r: PlanResult) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> };
 
 export const DEFAULT_PLANNER_URL = process.env.NEXT_PUBLIC_PLANNER_URL || 'ws://localhost:8000/ws/planner';
+/** Planner backbones offered in the start menu (the server keeps the same list in planner.MODELS). */
+export const BACKBONES = [
+  { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', note: 'strongest plans, slowest; $4 / $20 per M tokens' },
+  { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', note: 'balanced; $2 / $10 per M tokens' },
+  { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', note: 'fastest and cheapest; $0.10 / $0.50 per M tokens' },
+  { id: 'rules', label: 'Rule-based only', note: 'no LLM: instant and free' },
+] as const;
+
+export const backboneLabel = (id: string) => BACKBONES.find(b => b.id === id)?.label ?? id;
+
 /** The server gives up on Claude after 30 s and answers with its rules, so this always outlasts it. */
 const LLM_TIMEOUT_MS = 35_000;
 
 export class PlannerClient implements PlannerTransport {
   serverInfo: { planner: string; version: string; llm: boolean } | null = null;
+  /** Backbone picked in the start menu, sent with every situation report. */
+  model: string | null = null;
   private ws: WebSocket | null = null;
   private state: 'connecting' | 'online' | 'offline' = 'connecting';
   private pending = new Map<string, Pending>();
@@ -30,7 +42,8 @@ export class PlannerClient implements PlannerTransport {
 
   get name() {
     if (this.state !== 'online') return 'in-browser fallback';
-    return this.serverInfo?.llm ? 'Claude (via FastAPI)' : 'FastAPI';
+    if (!this.serverInfo?.llm || this.model === 'rules') return 'FastAPI rule-based';
+    return `${backboneLabel(this.model ?? 'claude-opus-5-5')} (via FastAPI)`;
   }
 
   status() {
@@ -62,7 +75,9 @@ export class PlannerClient implements PlannerTransport {
       this.pending.delete(msg.requestId);
       clearTimeout(p.timer);
       if (msg.type === 'error') return p.reject(new Error(`planner refused: ${msg.detail}`));
-      p.resolve({ source: 'server', planner: msg.planner, commands: msg.commands, summary: msg.summary, notes: msg.notes });
+      p.resolve({
+        source: 'server', planner: msg.planner, commands: msg.commands, summary: msg.summary, notes: msg.notes, model: msg.model, usage: msg.usage,
+      });
     };
     ws.onclose = () => {
       this.ws = null;
@@ -93,9 +108,9 @@ export class PlannerClient implements PlannerTransport {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
         reject(new Error('planner timed out'));
-      }, this.serverInfo?.llm ? LLM_TIMEOUT_MS : latencyMs + 8000);
+      }, this.serverInfo?.llm && this.model !== 'rules' ? LLM_TIMEOUT_MS : latencyMs + 8000);
       this.pending.set(requestId, { resolve, reject, timer });
-      ws.send(JSON.stringify({ type: 'situation', requestId, latencyMs, report }));
+      ws.send(JSON.stringify({ type: 'situation', requestId, latencyMs, model: this.model, report }));
     });
   }
 

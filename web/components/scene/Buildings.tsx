@@ -4,23 +4,16 @@ import { useMemo, useRef } from 'react';
 import type { Group, Mesh } from 'three';
 import { useSim } from '../store';
 import { BARN, CRATES, FOUNTAIN, HOUSES, HOUSE_HALF, STALLS, TOWER, type House as HouseT } from '@/sim/layout';
-import { MAT, gableRoof, numberTexture } from './materials';
+import { MAT, flat, gableRoof, numberTexture, tinted } from './materials';
+import StaticMerge from './StaticMerge';
 
 const W = HOUSE_HALF * 2;
 
 function House({ h }: { h: HouseT }) {
   const roof = useMemo(() => gableRoof(W, W, 1.7, 0.35), []);
-  const wallMat = useMemo(() => {
-    const m = MAT.white.clone();
-    m.color.set(h.wall);
-    return m;
-  }, [h.wall]);
+  const wallMat = tinted(MAT.white, h.wall);
   const sign = useMemo(() => numberTexture(h.i + 1), [h.i]);
-  const roofMat = useMemo(() => {
-    const m = MAT.wood.clone();
-    m.color.set(h.roof);
-    return m;
-  }, [h.roof]);
+  const roofMat = tinted(MAT.wood, h.roof);
   return (
     <group position={[h.x, 0, h.z]}>
       <mesh material={wallMat} castShadow receiveShadow position-y={1.3}>
@@ -62,11 +55,7 @@ function Stall({ x, z, color, hw, hd }: { x: number; z: number; color: string; h
   useFrame(() => {
     if (produce.current) produce.current.visible = sim.shortage <= 0;
   });
-  const awning = useMemo(() => {
-    const m = MAT.white.clone();
-    m.color.set(color);
-    return m;
-  }, [color]);
+  const awning = tinted(MAT.white, color);
   return (
     <group position={[x, 0, z]}>
       <mesh material={MAT.wood} castShadow receiveShadow position-y={0.5}>
@@ -80,13 +69,15 @@ function Stall({ x, z, color, hw, hd }: { x: number; z: number; color: string; h
       <mesh material={awning} castShadow position={[0, 2.72, 0.1]} rotation-x={0.18}>
         <boxGeometry args={[hw * 2 + 0.3, 0.08, hd * 2 + 0.5]} />
       </mesh>
-      <group ref={produce}>
-        {['#e0703a', '#c43d3d', '#9cc04a', '#f0c24b', '#e0703a', '#9cc04a'].map((c, k) => (
-          <mesh key={k} position={[-hw + 0.35 + k * ((hw * 2 - 0.7) / 5), 1.12, 0.15]}>
-            <sphereGeometry args={[0.16, 8, 6]} />
-            <meshStandardMaterial color={c} flatShading />
-          </mesh>
-        ))}
+      {/* Hidden during a food shortage, so it is batched on its own rather than with the static stall. */}
+      <group ref={produce} userData={{ dynamic: true }}>
+        <StaticMerge>
+          {['#e0703a', '#c43d3d', '#9cc04a', '#f0c24b', '#e0703a', '#9cc04a'].map((c, k) => (
+            <mesh key={k} material={flat(c)} position={[-hw + 0.35 + k * ((hw * 2 - 0.7) / 5), 1.12, 0.15]}>
+              <sphereGeometry args={[0.16, 8, 6]} />
+            </mesh>
+          ))}
+        </StaticMerge>
       </group>
     </group>
   );
@@ -117,7 +108,7 @@ function Tower() {
       <mesh material={MAT.darkWood} position={[0, 6.2, 0]}>
         <cylinderGeometry args={[0.04, 0.04, 1.2, 6]} />
       </mesh>
-      <mesh ref={flag} position={[0, 6.55, 0]}>
+      <mesh ref={flag} position={[0, 6.55, 0]} userData={{ dynamic: true }}>
         <boxGeometry args={[0.02, 0.35, 0.6]} />
         <meshStandardMaterial color="#c9502a" />
       </mesh>
@@ -159,7 +150,7 @@ function Fountain() {
       <mesh material={MAT.stone} position-y={1.5}>
         <cylinderGeometry args={[0.55, 0.3, 0.18, 14]} />
       </mesh>
-      <mesh ref={spout} material={MAT.water} position-y={1.75}>
+      <mesh ref={spout} material={MAT.water} position-y={1.75} userData={{ dynamic: true }}>
         <coneGeometry args={[0.18, 0.5, 10]} />
       </mesh>
     </group>

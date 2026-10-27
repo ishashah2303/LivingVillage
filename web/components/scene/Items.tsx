@@ -1,7 +1,10 @@
 'use client';
 import { useFrame } from '@react-three/fiber';
-import { useMemo, useRef } from 'react';
-import { AdditiveBlending, MeshBasicMaterial, MeshStandardMaterial, NormalBlending, SpriteMaterial, type Group, type PointLight, type Sprite } from 'three';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  AdditiveBlending, Color, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, NormalBlending, Object3D, SphereGeometry, SpriteMaterial,
+  type Group, type PointLight, type Sprite,
+} from 'three';
 import { useSim, useTick } from '../store';
 import { PLAZA_R } from '@/sim/layout';
 import { FIRE, type Fire, type Food, type Item, type Rock, type Well } from '@/sim/simulation';
@@ -12,6 +15,9 @@ const flameMats = (['#e8431c', '#ff7a1f', '#ffb02e', '#ffe16a'] as const).map(
   (c, i) => new MeshBasicMaterial({ color: c, toneMapped: false, transparent: true, opacity: i < 2 ? 0.95 : 0.8, blending: i < 2 ? NormalBlending : AdditiveBlending, depthWrite: i < 2 }),
 );
 const emberMat = new MeshBasicMaterial({ color: '#ffcf5a', toneMapped: false });
+const emberGeo = new SphereGeometry(0.05, 4, 3);
+const EMBERS = 12, PUFFS = 7;
+const scratch = new Object3D();
 /** [x, z, height, radius, material] for each flame tongue. */
 const FLAMES: [number, number, number, number, number][] = [
   [0, 0, 2.7, 0.75, 0], [0.45, 0.25, 2.0, 0.55, 1], [-0.4, 0.3, 2.2, 0.55, 1], [0.15, -0.45, 1.9, 0.5, 1],
@@ -19,13 +25,14 @@ const FLAMES: [number, number, number, number, number][] = [
 ];
 
 function FireFx({ f }: { f: Fire }) {
-  const flames = useRef<Group>(null), smoke = useRef<Group>(null), embers = useRef<Group>(null), light = useRef<PointLight>(null);
+  const flames = useRef<Group>(null), smoke = useRef<Group>(null), embers = useRef<InstancedMesh>(null);
   const halo = useRef<Sprite>(null);
   const glow = useMemo(() => new SpriteMaterial({ map: glowTexture('rgba(255,150,60,1)'), blending: AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.6, toneMapped: false }), []);
   const smokeMats = useMemo(() => {
     const puff = glowTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
-    return Array.from({ length: 10 }, () => new SpriteMaterial({ map: puff, color: '#5f5a55', transparent: true, depthWrite: false }));
+    return Array.from({ length: PUFFS }, () => new SpriteMaterial({ map: puff, color: '#5f5a55', transparent: true, depthWrite: false }));
   }, []);
+  useEffect(() => () => [glow, ...smokeMats].forEach(m => m.dispose()), [glow, smokeMats]);
   useFrame(({ clock }) => {
     const t = clock.elapsedTime + f.id * 3.1;
     const s = f.alive ? 1 : f.fade;
@@ -36,14 +43,17 @@ function FireFx({ f }: { f: Fire }) {
       m.position.y = (FLAMES[k][2] * s * flick) / 2;
     });
     halo.current!.scale.setScalar(s * (5.5 + Math.sin(t * 9) * 0.4));
-    light.current!.intensity = s * (40 + 10 * Math.sin(t * 13) + 6 * Math.sin(t * 7.3));
-    embers.current!.children.forEach((m, k) => {
-      const p = (t * 0.55 + k / 12) % 1;
-      m.position.set(Math.sin(k * 3.7 + t) * (0.3 + p * 0.9), 0.4 + p * 4.5, Math.cos(k * 2.9 + t * 0.7) * (0.3 + p * 0.9));
-      m.scale.setScalar(s * (1 - p));
-    });
+    // Embers: one instanced draw call instead of twelve meshes.
+    for (let k = 0; k < EMBERS; k++) {
+      const p = (t * 0.55 + k / EMBERS) % 1;
+      scratch.position.set(Math.sin(k * 3.7 + t) * (0.3 + p * 0.9), 0.4 + p * 4.5, Math.cos(k * 2.9 + t * 0.7) * (0.3 + p * 0.9));
+      scratch.scale.setScalar(s * (1 - p));
+      scratch.updateMatrix();
+      embers.current!.setMatrixAt(k, scratch.matrix);
+    }
+    embers.current!.instanceMatrix.needsUpdate = true;
     smoke.current!.children.forEach((m, k) => {
-      const p = (t * 0.2 + k / 10) % 1;
+      const p = (t * 0.2 + k / PUFFS) % 1;
       m.position.set(Math.sin(k * 1.9 + t * 0.25) * (0.3 + p * 1.6) + p * 1.2, 2.2 + p * 7, Math.cos(k * 2.3) * (0.3 + p));
       m.scale.setScalar(1.6 + p * 4.5);
       const mat = smokeMats[k];
@@ -70,14 +80,7 @@ function FireFx({ f }: { f: Fire }) {
         ))}
       </group>
       <sprite ref={halo} material={glow} position-y={1.3} />
-      <group ref={embers}>
-        {Array.from({ length: 12 }, (_, k) => (
-          <mesh key={k} material={emberMat}>
-            <sphereGeometry args={[0.05, 4, 3]} />
-          </mesh>
-        ))}
-      </group>
-      <pointLight ref={light} color="#ff8a3a" distance={18} decay={1.4} position={[0, 1.8, 0]} />
+      <instancedMesh ref={embers} args={[emberGeo, emberMat, EMBERS]} frustumCulled={false} />
       <group ref={smoke}>
         {smokeMats.map((m, k) => (
           <sprite key={k} material={m} />
@@ -194,7 +197,68 @@ function Festival() {
           <sphereGeometry args={[0.16, 8, 6]} />
         </mesh>
       ))}
-      <pointLight color="#ffc36b" intensity={30} distance={14} position={[0, 3, 0]} />
+    </group>
+  );
+}
+
+/**
+ * A fixed pool of point lights that fires and the festival borrow. three.js compiles shaders for a
+ * given number of lights, so adding a light per fire recompiled every lit material in the scene:
+ * a visible freeze (up to 1.8 s on integrated graphics) each time a fire started or went out.
+ */
+const POOL = 3;
+const FIRE_LIGHT = new Color('#ff8a3a'), FESTIVAL_LIGHT = new Color('#ffc36b');
+
+function LightPool() {
+  const sim = useSim();
+  const refs = useRef<(PointLight | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    let k = 0;
+    const use = (x: number, y: number, z: number, color: Color, intensity: number, distance: number) => {
+      const l = refs.current[k++];
+      if (!l) return;
+      l.position.set(x, y, z);
+      l.color.copy(color);
+      l.intensity = intensity;
+      l.distance = distance;
+    };
+    if (sim.festival > 0) use(0, 3, 0, FESTIVAL_LIGHT, 30, 14);
+    // Burning fires first, then fading ones; beyond the pool size a fire keeps its glow sprite only.
+    const fires = sim.items.filter((i): i is Fire => i.kind === 'fire' && (i.alive || i.fade > 0.05)).sort((a, b) => +b.alive - +a.alive);
+    for (const f of fires) {
+      if (k >= POOL) break;
+      const tt = t + f.id * 3.1;
+      use(f.x, 1.8, f.z, FIRE_LIGHT, (f.alive ? 1 : f.fade) * (40 + 10 * Math.sin(tt * 13) + 6 * Math.sin(tt * 7.3)), 18);
+    }
+    while (k < POOL) refs.current[k++]!.intensity = 0;
+  });
+  return (
+    <>
+      {Array.from({ length: POOL }, (_, k) => (
+        <pointLight key={k} ref={el => { refs.current[k] = el; }} intensity={0} decay={1.4} />
+      ))}
+    </>
+  );
+}
+
+/**
+ * Draws one fire out of sight (under the ground) for the first second, so its shaders and textures
+ * are compiled while the menu is up instead of freezing the game when the first real fire starts.
+ */
+const WARMUP_FIRE = { id: -1, kind: 'fire', x: 0, z: 0, alive: true, fade: 1 } as Fire;
+let warmedUp = false;
+
+function FireWarmup() {
+  const [done, setDone] = useState(warmedUp);
+  useEffect(() => {
+    if (done) return;
+    const t = setTimeout(() => ((warmedUp = true), setDone(true)), 1000);
+    return () => clearTimeout(t);
+  }, [done]);
+  return done ? null : (
+    <group position-y={-40}>
+      <FireFx f={WARMUP_FIRE} />
     </group>
   );
 }
@@ -206,6 +270,8 @@ export default function Items() {
     <group>
       {sim.items.map(it => <ItemFx key={it.id} it={it} />)}
       <Festival />
+      <LightPool />
+      <FireWarmup />
     </group>
   );
 }

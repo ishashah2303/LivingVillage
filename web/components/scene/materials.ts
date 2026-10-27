@@ -4,6 +4,27 @@ const std = (color: string, extra: Partial<ConstructorParameters<typeof MeshStan
   new MeshStandardMaterial({ color, roughness: 0.9, flatShading: true, ...extra });
 
 /** Shared materials. `window` and `lantern` glow at night (DayNight animates their emissive intensity). */
+const shared = new Map<string, MeshStandardMaterial>();
+
+/**
+ * One material per (base, color): meshes that look alike share a material, so StaticMerge can batch
+ * them into one draw call (per-mesh clones defeat that).
+ */
+export function tinted(base: MeshStandardMaterial, color: string) {
+  const key = `${base.uuid}|${color}`;
+  let m = shared.get(key);
+  if (!m) shared.set(key, (m = base.clone())), m.color.set(color);
+  return m;
+}
+
+/** A shared flat-shaded material in `color` (produce, lily pads). */
+export function flat(color: string) {
+  const key = `flat|${color}`;
+  let m = shared.get(key);
+  if (!m) shared.set(key, (m = new MeshStandardMaterial({ color, flatShading: true })));
+  return m;
+}
+
 export const MAT = {
   window: std('#46443c', { emissive: '#ffc873', emissiveIntensity: 0 }),
   lantern: std('#fff2cc', { emissive: '#ffb347', emissiveIntensity: 0.4 }),
@@ -71,7 +92,13 @@ export function numberTexture(n: number) {
 }
 
 /** Soft radial gradient used for glow sprites (fire halo, lanterns). */
+const glows = new Map<string, CanvasTexture>();
+
+/** Radial glow sprite texture. Cached: every fire used to build (and upload) its own copies. */
 export function glowTexture(inner = 'rgba(255,190,90,1)', outer = 'rgba(255,120,30,0)') {
+  const key = `${inner}|${outer}`;
+  const hit = glows.get(key);
+  if (hit) return hit;
   const c = document.createElement('canvas');
   c.width = c.height = 128;
   const g = c.getContext('2d')!;
@@ -83,5 +110,6 @@ export function glowTexture(inner = 'rgba(255,190,90,1)', outer = 'rgba(255,120,
   g.fillRect(0, 0, 128, 128);
   const t = new CanvasTexture(c);
   t.colorSpace = SRGBColorSpace;
+  glows.set(key, t);
   return t;
 }

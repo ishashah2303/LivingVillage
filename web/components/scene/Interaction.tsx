@@ -4,22 +4,26 @@ import { useFrame, type ThreeEvent } from '@react-three/fiber';
 import { useRef } from 'react';
 import { Vector3, type Mesh, type MeshBasicMaterial } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
-import { useSim, useUI, type Tool } from '../store';
+import { useGame, useSim, useUI, type Tool } from '../store';
 import { dist } from '@/sim/math';
 import { FIRE } from '@/sim/simulation';
 
 const hover = { x: 0, z: 0, active: false };
-const TOOL_RADIUS: Record<Tool, number> = { select: 0.6, fire: FIRE.blockRadius, rock: 1.25, well: 1.1, food: 0.5, erase: 2.5 };
-const TOOL_COLOR: Record<Tool, string> = { select: '#ffffff', fire: '#ff7a1f', rock: '#d6d3c8', well: '#8fd0ff', food: '#f0c24b', erase: '#ff4d6d' };
+const TOOL_RADIUS: Record<Tool, number> = { select: 0.6, fire: FIRE.blockRadius, rock: 1.25, well: 1.1, food: 0.5, erase: 2.5, water: FIRE.blockRadius + 1.2 };
+const TOOL_COLOR: Record<Tool, string> = {
+  select: '#ffffff', fire: '#ff7a1f', rock: '#d6d3c8', well: '#8fd0ff', food: '#f0c24b', erase: '#ff4d6d', water: '#4fb3ff',
+};
 
 /** Invisible ground plane that turns clicks into world edits. */
 export function Ground() {
   const sim = useSim();
+  const game = useGame();
   const tool = useUI(s => s.tool);
   const select = useUI(s => s.select);
+  const playing = useUI(s => s.phase === 'playing');
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
-    if (e.delta > 4) return; // it was a camera drag
+    if (e.delta > 4 || !playing) return; // a camera drag, or the menu / end screen is up
     const p = { x: e.point.x, z: e.point.z };
     switch (tool) {
       case 'select': {
@@ -31,7 +35,8 @@ export function Ground() {
       case 'fire': sim.startFire(p); break;
       case 'rock': sim.addRock(p); break;
       case 'well': sim.addWell(p); break;
-      case 'food': sim.dropFood(p); break;
+      case 'food': if (game.mode === 'challenge') game.useFood(p); else sim.dropFood(p); break;
+      case 'water': game.useWater(p); break;
       case 'erase': sim.removeNear(p); break;
     }
   };
@@ -61,7 +66,7 @@ export function Cursor() {
     if (!m.visible) return;
     m.position.set(hover.x, 0.12, hover.z);
     m.scale.setScalar(TOOL_RADIUS[tool]);
-    const ok = tool === 'erase' || sim.canPlace(hover);
+    const ok = tool === 'erase' || (tool === 'water' ? sim.aliveFires().length > 0 : sim.canPlace(hover));
     (m.material as MeshBasicMaterial).color.set(ok ? TOOL_COLOR[tool] : '#ff2a2a');
   });
   return (

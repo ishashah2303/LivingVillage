@@ -15,7 +15,9 @@ class FakeMessages:
         self.calls.append(kwargs)
         if self.error:
             raise self.error
-        return SimpleNamespace(stop_reason=self.stop_reason, content=[SimpleNamespace(type="text", text=json.dumps(self.payload))])
+        return SimpleNamespace(stop_reason=self.stop_reason, model=kwargs["model"],
+                               usage=SimpleNamespace(input_tokens=2000, output_tokens=500),
+                               content=[SimpleNamespace(type="text", text=json.dumps(self.payload))])
 
 
 def fake_client(**kw):
@@ -54,8 +56,9 @@ def test_llm_planner_returns_grounded_plan_and_sends_constrained_request():
         {"agent": "Lina", "verb": "HELP_AGENT", "target": "Maya", "reason": "Maya's friend and safe."},
     ]})
     planner = LLMPlanner(client=client)
-    cmds, summary, dropped = asyncio.run(planner.plan(report()))
+    cmds, summary, dropped, usage = asyncio.run(planner.plan(report()))
     assert summary == "Everyone heads east." and dropped == []
+    assert usage == {"inputTokens": 2000, "outputTokens": 500, "costUsd": 0.018}  # $4 / $20 per MTok
     assert [c.verb for c in cmds] == ["EVACUATE", "HELP_AGENT"]
     sent = client.beta.messages.calls[0]
     assert sent["model"] == "claude-opus-5-5"
@@ -65,8 +68,31 @@ def test_llm_planner_returns_grounded_plan_and_sends_constrained_request():
 
 def test_refusal_or_error_falls_back_to_rules(monkeypatch):
     monkeypatch.setattr(main, "llm", LLMPlanner(client=fake_client(error=RuntimeError("boom"))))
-    name, cmds, summary, notes = asyncio.run(main.make_plan(report()))
-    assert name == "Rule-based planner" and len(cmds) == 5 and "Claude unavailable" in notes[0]
+    name, cmds, summary, notes, usage = asyncio.run(main.make_plan(report()))
+    assert name == "Rule-based planner" and len(cmds) == 5 and "unavailable" in notes[0] and usage is None
     monkeypatch.setattr(main, "llm", LLMPlanner(client=fake_client(payload={}, stop_reason="refusal")))
-    name, _, _, notes = asyncio.run(main.make_plan(report()))
+    name, _, _, notes, _ = asyncio.run(main.make_plan(report()))
     assert name == "Rule-based planner" and "declined" in notes[0]
+
+
+def test_menu_picks_the_backbone_and_haiku_skips_the_fallback(monkeypatch):
+    payload = {"summary": "s", "commands": [{"agent": "Tomas", "verb": "INVESTIGATE", "target": "Fire#1", "reason": "guard"}]}
+    default = LLMPlanner(client=fake_client(payload=payload))
+    monkeypatch.setattr(main, "llm", default)
+    haiku = LLMPlanner(model="claude-haiku-5-5", client=fake_client(payload=payload))
+    monkeypatch.setattr(main, "_backbones", {"claude-haiku-5-5": haiku})
+    name, cmds, _, _, usage = asyncio.run(main.make_plan(report(), model="claude-haiku-5-5"))
+    sent = haiku._client.beta.messages.calls[0]
+    assert name == "Claude Haiku 5.5" and sent["model"] == "claude-haiku-5-5" and "fallbacks" not in sent
+    assert usage["costUsd"] == round((2000 * 0.10 + 500 * 0.50) / 1e6, 6)
+    name, _, _, _, usage = asyncio.run(main.make_plan(report(), model="rules"))
+    assert name == "Rule-based planner" and usage is None and not default._client.beta.messages.calls
+    name, _, _, _, _ = asyncio.run(main.make_plan(report(), model="gpt-9"))  # unknown: the default backbone
+    assert name == "Claude Opus 5.5"
+
+
+def test_grounding_enforces_spot_capacity():
+    raw = [{"agent": n, "verb": "EVACUATE", "target": "ForestClearing", "reason": "x"} for n in ["Maya", "Elena", "Oskar", "Lina"]]
+    kept, dropped = ground_commands(report(), raw)
+    assert [c.agent for c in kept] == ["Maya", "Elena", "Oskar"]
+    assert dropped == ["EVACUATE(ForestClearing) for Lina: spot is full (3 already assigned)"]

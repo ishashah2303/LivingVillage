@@ -165,4 +165,12 @@ export class NavWorld {
   step(dt: number) {
     this.crowd.update(dt);
   }
+
+  /** Frees the WebAssembly memory; a new game builds a fresh NavWorld. */
+  dispose() {
+    this.crowd.destroy();
+    this.query.destroy();
+    this.tileCache.destroy();
+    this.navMesh.destroy();
+  }
 }

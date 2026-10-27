@@ -1,11 +1,13 @@
 'use client';
 import { useFrame } from '@react-three/fiber';
 import { useLayoutEffect, useMemo, useRef } from 'react';
-import { Color, Float32BufferAttribute, InstancedMesh, Matrix4, PlaneGeometry } from 'three';
+import { Color, Float32BufferAttribute, InstancedMesh, Matrix4, MeshBasicMaterial, PlaneGeometry } from 'three';
 import { useSim } from '../store';
 import { DOCK, FARM, PATHS, PLAZA_R, POND, g2w } from '@/sim/layout';
 import { Rng } from '@/sim/math';
-import { MAT } from './materials';
+import { MAT, flat } from './materials';
+
+const RING_MAT = new MeshBasicMaterial({ color: '#000', transparent: true, opacity: 0.07 });
 
 /** Low-poly grass: every triangle gets a slightly different green. */
 function GrassTop() {
@@ -56,9 +58,9 @@ function Plaza() {
         <cylinderGeometry args={[PLAZA_R, PLAZA_R, 0.05, 48]} />
       </mesh>
       {[2.6, 3.6, 4.6].map(r => (
-        <mesh key={r} rotation-x={-Math.PI / 2} position-y={0.052}>
+        <mesh key={r} material={RING_MAT} rotation-x={-Math.PI / 2} position-y={0.052}>
           <ringGeometry args={[r - 0.04, r, 64]} />
-          <meshBasicMaterial color="#000" transparent opacity={0.07} />
+
         </mesh>
       ))}
     </group>
@@ -115,9 +117,8 @@ function Pond() {
         <cylinderGeometry args={[POND.r, POND.r, 0.06, 40]} />
       </mesh>
       {pads.map((p, i) => (
-        <mesh key={i} position={[p.x, 0.085, p.z]}>
+        <mesh key={i} material={flat('#5f9a3a')} position={[p.x, 0.085, p.z]}>
           <cylinderGeometry args={[p.s, p.s, 0.015, 10]} />
-          <meshStandardMaterial color="#5f9a3a" flatShading />
         </mesh>
       ))}
       <group position={[dock.x, 0, dock.z]} rotation-y={Math.atan2(-dir.x, -dir.z)}>

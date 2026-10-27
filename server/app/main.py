@@ -10,7 +10,8 @@ WebSocket: /ws/planner          what the browser uses; replies can arrive out of
 Configuration (environment or server/.env):
   ANTHROPIC_API_KEY   enables the Claude planner (otherwise the rule-based planner answers)
   LV_PLANNER          "llm" (default) or "rules"
-  LV_MODEL            Claude model id (default claude-opus-5-5)
+  LV_MODEL            default Claude model id (default claude-opus-5-5); the browser may pick another
+                      backbone from planner.MODELS per request (start menu), or "rules"
   LV_EFFORT           low | medium | high (default low: the plan is short, latency matters)
   LV_ALLOWED_ORIGINS  extra comma-separated browser origins allowed to call the service, e.g.
                       https://ishashah2303.github.io (no path); applies to REST (CORS) and the WebSocket
@@ -31,10 +32,10 @@ from pydantic import ValidationError
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from .limits import LLMBudget, client_id  # noqa: E402
-from .planner import LLMPlanner, RuleBasedPlanner  # noqa: E402
+from .planner import MODELS, LLMPlanner, RuleBasedPlanner  # noqa: E402
 from .schemas import Command, PlanMessage, SituationMessage, SituationReport  # noqa: E402
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 app = FastAPI(title="Living Village planner", version=VERSION)
 origins = ["http://localhost:3000", "http://127.0.0.1:3000"]
@@ -55,34 +56,55 @@ def _make_llm() -> LLMPlanner | None:
 
 
 llm = _make_llm()
+_backbones: dict[str, LLMPlanner] = {}
 
 
 def planner_name() -> str:
     return llm.name if llm else rules.name
 
 
-async def make_plan(report: SituationReport, simulated_latency_ms: int = 0,
-                    client: str = "local") -> tuple[str, list[Command], str, list[str]]:
-    """Ask Claude; on any failure or over budget answer with the rules so the village never waits on the API."""
-    if llm is not None and report.fires:
+def planner_for(model: str | None) -> LLMPlanner | None:
+    """The Claude planner for a menu choice (None or unknown: the default backbone). None means rules."""
+    if llm is None or model == "rules":
+        return None
+    if model is None or model == llm.model or model not in MODELS:
+        return llm
+    if model not in _backbones:
+        _backbones[model] = LLMPlanner(model=model, effort=llm.effort, timeout_s=llm.timeout_s)
+    return _backbones[model]
+
+
+async def make_plan(report: SituationReport, simulated_latency_ms: int = 0, client: str = "local",
+                    model: str | None = None) -> tuple[str, list[Command], str, list[str], dict | None]:
+    """Ask Claude; on any failure or over budget answer with the rules so the village never waits on the API.
+
+    Returns (planner name, commands, summary, notes, usage); usage is None when no LLM call was billed.
+    """
+    planner = planner_for(model)
+    if planner is not None and report.fires:
         refused = budget.take(client)
         if refused:
-            return rules.name, rules.plan(report), "", [f"Claude skipped: {refused}; used the rule-based planner"]
+            return rules.name, rules.plan(report), "", [f"Claude skipped: {refused}; used the rule-based planner"], None
         try:
-            cmds, summary, dropped = await asyncio.wait_for(llm.plan(report), timeout=llm.timeout_s + 5)
+            cmds, summary, dropped, usage = await asyncio.wait_for(planner.plan(report), timeout=planner.timeout_s + 5)
             notes = [f"dropped {d}" for d in dropped]
-            return llm.name, cmds, summary, notes
+            return planner.name, cmds, summary, notes, usage
         except Exception as e:  # network, auth, timeout, refusal, bad JSON: all degrade the same way
-            note = f"Claude unavailable ({type(e).__name__}: {str(e)[:120]}); used the rule-based planner"
-            return rules.name, rules.plan(report), "", [note]
+            note = f"{planner.name} unavailable ({type(e).__name__}: {str(e)[:120]}); used the rule-based planner"
+            return rules.name, rules.plan(report), "", [note], None
     # Rules only: optional stand-in delay so the client's staleness handling can still be demonstrated.
     await asyncio.sleep(simulated_latency_ms / 1000)
-    return rules.name, rules.plan(report), "", []
+    return rules.name, rules.plan(report), "", [], None
+
+
+def _model_id(name: str) -> str:
+    return next((k for k, m in MODELS.items() if m["label"] == name), "rules" if name == rules.name else name)
 
 
 @app.get("/api/health")
 def health() -> dict:
     return {"ok": True, "service": "living-village-planner", "version": VERSION, "planner": planner_name(), "llm": llm is not None,
+            "models": list(MODELS) if llm else [], "defaultModel": llm.model if llm else "rules",
             "limits": {"perClientPerHour": budget.per_client, "perHour": budget.total}}
 
 
@@ -99,9 +121,10 @@ def commands() -> dict:
 async def plan_once(report: SituationReport, request: Request) -> PlanMessage:
     started = time.perf_counter()
     peer = request.client.host if request.client else None
-    name, cmds, summary, notes = await make_plan(report, client=client_id(request.headers, peer))
+    name, cmds, summary, notes, usage = await make_plan(report, client=client_id(request.headers, peer))
     return PlanMessage(requestId="rest", planner=name, worldVersion=report.version,
-                       elapsedMs=round((time.perf_counter() - started) * 1000), commands=cmds, summary=summary, notes=notes)
+                       elapsedMs=round((time.perf_counter() - started) * 1000), commands=cmds, summary=summary, notes=notes,
+                       model=_model_id(name), usage=usage)
 
 
 @app.websocket("/ws/planner")
@@ -114,15 +137,16 @@ async def planner_socket(ws: WebSocket) -> None:
         return
     client = client_id(ws.headers, ws.client.host if ws.client else None)
     await ws.accept()
-    await ws.send_json({"type": "hello", "planner": planner_name(), "version": VERSION, "llm": llm is not None})
+    await ws.send_json({"type": "hello", "planner": planner_name(), "version": VERSION, "llm": llm is not None,
+                        "models": list(MODELS) if llm else []})
     tasks: set[asyncio.Task] = set()
 
     async def answer(msg: SituationMessage) -> None:
         started = time.perf_counter()
-        name, cmds, summary, notes = await make_plan(msg.report, msg.latencyMs, client)
+        name, cmds, summary, notes, usage = await make_plan(msg.report, msg.latencyMs, client, msg.model)
         reply = PlanMessage(requestId=msg.requestId, planner=name, worldVersion=msg.report.version,
                             elapsedMs=round((time.perf_counter() - started) * 1000), commands=cmds,
-                            summary=summary, notes=notes)
+                            summary=summary, notes=notes, model=_model_id(name), usage=usage)
         await ws.send_json(reply.model_dump())
 
     try:

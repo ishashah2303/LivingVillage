@@ -4,8 +4,10 @@ import { ROLE_LABEL } from '@/sim/agents';
 import { BOIDS } from '@/sim/boids';
 import { activePath, flatten, type Status } from '@/sim/bt';
 import { PLACES } from '@/sim/layout';
+import { SEASON } from '@/sim/game';
+import { backboneLabel } from '@/sim/plannerClient';
 import { ACTIVITY_LABEL, DT } from '@/sim/simulation';
-import { framePerf, useSim, useTick, useUI, type Tool } from '../store';
+import { framePerf, useGame, useSim, useTick, useUI, type Tool } from '../store';
 
 /** Renders `code` spans for text between backticks (log lines and reasons). */
 export function Rich({ text }: { text: string }) {
@@ -19,7 +21,8 @@ export function Rich({ text }: { text: string }) {
 const SPEEDS: [number, string][] = [[0, 'Pause'], [1, '1×'], [3, '3×'], [10, '10×']];
 
 const KEYS: [string, string][] = [
-  ['1–6', 'pick a tool'],
+  ['1–6', 'pick a tool (Fire Season: 1–3)'],
+  ['B', 'ring the alarm bell (Fire Season)'],
   ['Space', 'pause / resume'],
   ['F', 'follow the selected villager'],
   ['N', 'navmesh overlay'],
@@ -27,13 +30,15 @@ const KEYS: [string, string][] = [
   ['Drag', 'orbit · right-drag pan · scroll zoom'],
 ];
 
-export function TopBar() {
+export function TopBar({ onMenu }: { onMenu: () => void }) {
   const sim = useSim();
+  const game = useGame();
   const refresh = useTick(4);
   return (
     <header className="top card">
       <h1>Living Village</h1>
-      <p>behavior trees · Recast/Detour · boids · Claude planner</p>
+      <span className={`mode-badge ${game.mode}`}>{game.mode === 'challenge' ? '🔥 Fire Season' : '🧪 Sandbox'}</span>
+      <p>behavior trees · Recast/Detour · boids · LLM planner</p>
       <span className="clock">Day {sim.day}, {sim.clock()}</span>
       <div className="seg" role="group" aria-label="Simulation speed">
         {SPEEDS.map(([s, label]) => (
@@ -42,6 +47,10 @@ export function TopBar() {
           </button>
         ))}
       </div>
+      {game.mode === 'sandbox' && (
+        <button className="bar-btn" onClick={() => game.end()} title="See a summary of this session">End session</button>
+      )}
+      <button className="bar-btn" onClick={onMenu} title="Back to the start menu (this game is discarded)">Menu</button>
       <details className="keys">
         <summary aria-label="Keyboard and mouse controls" title="Controls">?</summary>
         <dl>
@@ -66,9 +75,79 @@ const TOOLS: [Tool, string, string, string][] = [
   ['erase', '✖', 'Remove', 'Remove an item'],
 ];
 
+function DebugOverlays() {
+  const { overlays, toggleOverlay } = useUI();
+  return (
+    <details className="fold">
+      <summary>Debug overlays</summary>
+      {([
+        ['navmesh', 'NavMesh (Recast)'],
+        ['obstacles', 'TileCache obstacles'],
+        ['paths', 'Paths & corridors'],
+        ['perception', 'Perception radius'],
+      ] as const).map(([k, label]) => (
+        <label key={k} className="toggle">
+          <input type="checkbox" checked={overlays[k]} onChange={() => toggleOverlay(k)} />
+          {label}
+        </label>
+      ))}
+    </details>
+  );
+}
+
+/** Charge meter for a tool that refills over time. */
+const Charges = ({ value, max }: { value: number; max: number }) => (
+  <span className="charges" aria-label={`${Math.floor(value)} of ${max}`}>
+    {Array.from({ length: max }, (_, k) => (
+      <i key={k} style={{ '--p': `${Math.round(Math.min(1, Math.max(0, value - k)) * 100)}%` } as React.CSSProperties} />
+    ))}
+  </span>
+);
+
+/** Fire Season: the player protects the village instead of editing it. */
+function ChallengeTools() {
+  const game = useGame();
+  const { tool, setTool } = useUI();
+  const refresh = useTick(5);
+  const tools: [Tool, string, string, string, React.ReactNode][] = [
+    ['select', '👆', 'Select', 'Select a villager (1)', null],
+    ['water', '💧', 'Water', 'Throw water on a fire (2). Two buckets put one out.', <Charges key="w" value={game.water} max={SEASON.water.max} />],
+    ['food', '🧺', 'Food', 'Leave a food basket (3), for the shortage', <Charges key="f" value={game.food} max={SEASON.food.max} />],
+  ];
+  return (
+    <aside className="tools card" aria-label="Your tools">
+      <h3>Your tools</h3>
+      <div className="stack">
+        {tools.map(([t, ic, label, long, extra]) => (
+          <button key={t} className={`tile wide${t === 'water' ? ' water' : ''}`} aria-pressed={tool === t} onClick={() => setTool(t)} title={long}>
+            <span className="ic">{ic}</span>
+            {label}
+            {extra}
+          </button>
+        ))}
+        <button
+          className="tile wide bell" disabled={game.alarmIn > 0 || !game.sim.aliveFires().length}
+          onClick={() => (game.ringAlarm(), refresh())}
+          title="Everyone within 20 m of a fire evacuates now, and the planner is asked for a plan (B)"
+        >
+          <span className="ic">🔔</span>
+          {game.alarmIn > 0 ? `Bell in ${Math.ceil(game.alarmIn)} s` : game.sim.aliveFires().length ? 'Ring the bell' : 'Bell (no fire)'}
+        </button>
+      </div>
+      <p className="tip">Fires near houses do double damage. Tomas fights fires on his own; water helps him finish them before they spread.</p>
+      <DebugOverlays />
+    </aside>
+  );
+}
+
 export function Toolbar() {
+  const game = useGame();
+  return game.mode === 'challenge' ? <ChallengeTools /> : <EditorTools />;
+}
+
+function EditorTools() {
   const sim = useSim();
-  const { tool, setTool, overlays, toggleOverlay, select, setPerfOpen } = useUI();
+  const { tool, setTool, select, setPerfOpen } = useUI();
   const refresh = useTick(4);
   return (
     <aside className="tools card" aria-label="World editor">
@@ -100,8 +179,12 @@ export function Toolbar() {
         className="tool demo"
         title="The planner answers late, and a second fire has started meanwhile: the safety gate rejects commands that are no longer safe"
         onClick={() => {
+          // Slow the simulated planner down for this one plan only (it used to stay at 4 s for the rest of the session).
+          const before = sim.plannerLatencyMs;
           sim.plannerLatencyMs = 4000;
-          if (!sim.startFireNear('Maya')) return;
+          const fire = sim.startFireNear('Maya');
+          sim.plannerLatencyMs = before;
+          if (!fire) return;
           select(0);
           refresh();
           setTimeout(() => sim.startFire({ x: 3.2, z: 3.4 }) ?? sim.startFire({ x: -3.4, z: 3.2 }), 800);
@@ -114,20 +197,7 @@ export function Toolbar() {
         <summary>Stress test</summary>
         <StressControls />
       </details>
-      <details className="fold">
-        <summary>Debug overlays</summary>
-        {([
-          ['navmesh', 'NavMesh (Recast)'],
-          ['obstacles', 'TileCache obstacles'],
-          ['paths', 'Paths & corridors'],
-          ['perception', 'Perception radius'],
-        ] as const).map(([k, label]) => (
-          <label key={k} className="toggle">
-            <input type="checkbox" checked={overlays[k]} onChange={() => toggleOverlay(k)} />
-            {label}
-          </label>
-        ))}
-      </details>
+      <DebugOverlays />
     </aside>
   );
 }
@@ -170,7 +240,7 @@ export function PerfOverlay() {
   const sim = useSim();
   const { perfOpen, setPerfOpen } = useUI();
   useTick(4);
-  const { fps, frameMs, worstMs, simMs, calls, triangles } = framePerf;
+  const { fps, frameMs, worstMs, simMs, calls, triangles, dpr } = framePerf;
   const { brainMs, navMs, boidsMs } = sim.perf;
   const n = sim.flock.birds.length;
   const minutes = Math.max(sim.simTime / 60, 1 / 60);
@@ -186,7 +256,7 @@ export function PerfOverlay() {
       {perfOpen && (
         <div className="details">
           <div>
-            frame <b>{frameMs.toFixed(1)}</b> ms (worst {worstMs.toFixed(0)}) · sim <b>{simMs.toFixed(1)}</b> ms/frame · {calls} draw calls · {(triangles / 1000).toFixed(0)}k tris
+            frame <b>{frameMs.toFixed(1)}</b> ms (worst {worstMs.toFixed(0)}) · sim <b>{simMs.toFixed(1)}</b> ms/frame · {calls} draw calls · {(triangles / 1000).toFixed(0)}k tris · resolution <b>{dpr}x</b> (auto)
           </div>
           <div>
             per 30 Hz step: brains <b>{brainMs.toFixed(2)}</b> · navmesh + crowd <b>{navMs.toFixed(2)}</b> · boids <b>{boidsMs.toFixed(2)}</b> ms
@@ -206,13 +276,13 @@ export function PerfOverlay() {
 
 export function PlannerPanel() {
   const sim = useSim();
-  const { plannerOpen, setPlannerOpen } = useUI();
+  const { plannerOpen, setPlannerOpen, backbone } = useUI();
   const refresh = useTick(4);
   const status = sim.planner?.status() ?? 'offline';
   const info = (sim.planner as { serverInfo?: { planner: string; version: string; llm: boolean } | null } | null)?.serverInfo;
-  const llm = status === 'online' && !!info?.llm;
+  const llm = status === 'online' && !!info?.llm && backbone !== 'rules';
   const color = status === 'online' ? '#3f9a5a' : status === 'connecting' ? '#d49a2a' : '#c9502a';
-  const label = llm ? 'Claude planner' : status === 'online' ? 'Server planner' : status === 'connecting' ? 'Connecting…' : 'Local planner';
+  const label = llm ? backboneLabel(backbone) : status === 'online' ? 'Server rules' : status === 'connecting' ? 'Connecting…' : 'Local planner';
   const last = sim.lastPlan;
   return (
     <div className={`overlay planner${plannerOpen ? ' open' : ''}`}>
@@ -234,7 +304,9 @@ export function PlannerPanel() {
             {status === 'online' && info ? `${info.planner} · v${info.version} · WebSocket` : 'Server offline: the same rules run in the browser.'}
           </div>
           {llm ? (
-            <p className="muted">Every fire triggers a Claude call; villagers act on reflexes while it thinks.</p>
+            <p className="muted">
+              Every fire triggers an LLM call; villagers act on reflexes while it thinks. Spent so far: <b>${sim.stats.llmCostUsd.toFixed(3)}</b> over {sim.stats.plans} plans.
+            </p>
           ) : (
             <label>
               Simulated LLM latency: <b>{(sim.plannerLatencyMs / 1000).toFixed(1)} s</b>
@@ -246,7 +318,7 @@ export function PlannerPanel() {
           )}
           {last && (
             <p className="last">
-              <span className="muted">Last plan ({last.latencyS.toFixed(1)} s, {last.accepted} accepted{last.rejected ? `, ${last.rejected} rejected` : ''}):</span>{' '}
+              <span className="muted">Last plan ({last.latencyS.toFixed(1)} s, {last.accepted} accepted{last.rejected ? `, ${last.rejected} rejected` : ''}{last.costUsd ? `, $${last.costUsd.toFixed(4)}` : ''}):</span>{' '}
               {last.summary || `${last.planner}.`}
             </p>
           )}
@@ -282,7 +354,7 @@ export function Inspector() {
       <h3>Villagers</h3>
       <div className="chips">
         {sim.villagers.map(o => (
-          <button key={o.id} className="chip" aria-pressed={o.id === selected} onClick={() => select(o.id === selected ? null : o.id)}>
+          <button key={o.id} className={`chip${o.injured ? ' hurt' : ''}`} aria-pressed={o.id === selected} onClick={() => select(o.id === selected ? null : o.id)}>
             <span className="dot" style={{ background: o.color }} />
             {o.name}
           </button>
@@ -304,7 +376,7 @@ export function Inspector() {
           </div>
           <dl>
             <dt>State</dt>
-            <dd>{ACTIVITY_LABEL[v.act]}</dd>
+            <dd>{v.injured ? 'Hurt in the smoke, with the healer' : ACTIVITY_LABEL[v.act]}</dd>
             <dt>Goal</dt>
             <dd>{v.goal?.label ?? 'Deciding'}</dd>
             <dt>Decision</dt>
@@ -319,6 +391,7 @@ export function Inspector() {
               Memory at work: avoids the {fears.map(([k]) => PLACES[k as keyof typeof PLACES]?.name ?? k).join(', ')} until day {fears[0][1]}
             </p>
           )}
+          {sim.rules.harm && bar('Health', v.health, v.health > 50 ? '#3f8f5a' : v.health > 25 ? '#d49a2a' : '#c9502a')}
           {bar('Hunger', v.hunger, '#c9502a')}
           {bar('Energy', v.energy, '#3f8f5a')}
           {bar('Social', v.social, '#4a78b0')}

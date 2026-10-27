@@ -20,7 +20,7 @@ function Villager({ v }: { v: V }) {
   const select = useUI(s => s.select);
   const root = useRef<Group>(null), body = useRef<Group>(null), head = useRef<Mesh>(null);
   const legL = useRef<Group>(null), legR = useRef<Group>(null), armL = useRef<Group>(null), armR = useRef<Group>(null);
-  const prop = useRef<Group>(null), ring = useRef<Mesh>(null), bubble = useRef<HTMLDivElement>(null);
+  const prop = useRef<Group>(null), ring = useRef<Mesh>(null), bubble = useRef<HTMLDivElement>(null), hp = useRef<HTMLDivElement>(null);
   const water = useRef<Group>(null);
   const cloth = useMemo(() => new MeshStandardMaterial({ color: v.color, roughness: 0.85, flatShading: true }), [v.color]);
 
@@ -89,6 +89,13 @@ function Villager({ v }: { v: V }) {
       ring.current.visible = selected;
       ring.current.scale.setScalar(1 + Math.sin(clock.elapsedTime * 4) * 0.06);
     }
+    if (hp.current) {
+      // Fire Season: a health bar under the name once smoke has hurt someone.
+      const show = sim.rules.harm && v.health < 99;
+      hp.current.style.display = show ? 'block' : 'none';
+      if (show) (hp.current.firstChild as HTMLElement).style.width = `${v.health}%`;
+      hp.current.classList.toggle('low', v.health < 35);
+    }
     if (bubble.current) {
       const show = v.sayT > 0;
       bubble.current.style.display = show ? 'block' : 'none';
@@ -123,7 +130,7 @@ function Villager({ v }: { v: V }) {
           <cylinderGeometry args={[0.305, 0.305, 0.06, 8]} />
         </mesh>
         <group ref={armL} position={[-0.31, 1.38, 0]}>
-          <mesh material={cloth} castShadow position-y={-0.28}>
+          <mesh material={cloth} position-y={-0.28}>
             <cylinderGeometry args={[0.065, 0.06, 0.56, 6]} />
           </mesh>
           <mesh material={MAT.skin} position-y={-0.6}>
@@ -131,7 +138,7 @@ function Villager({ v }: { v: V }) {
           </mesh>
         </group>
         <group ref={armR} position={[0.31, 1.38, 0]}>
-          <mesh material={cloth} castShadow position-y={-0.28}>
+          <mesh material={cloth} position-y={-0.28}>
             <cylinderGeometry args={[0.065, 0.06, 0.56, 6]} />
           </mesh>
           <mesh material={MAT.skin} position-y={-0.6}>
@@ -166,6 +173,7 @@ function Villager({ v }: { v: V }) {
         <div className={`tag${selected ? ' sel' : ''}`}>
           <div ref={bubble} className="bubble" />
           <div className="name">{v.name}</div>
+          <div ref={hp} className="hp" style={{ display: 'none' }}><i /></div>
         </div>
       </Html>
     </group>

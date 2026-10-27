@@ -64,6 +64,10 @@ export interface Villager {
   /** Hysteresis latches: hungry above 75 until below 15, tired below 15 until above 85. */
   hungry: boolean;
   tired: boolean;
+  /** 0-100. Smoke and starvation hurt only when the game's harm rule is on (Fire Season). */
+  health: number;
+  /** Health reached 0: taken to the healer, off the map for the rest of the game. */
+  injured: boolean;
 
   memory: Memory[];
   rel: Record<number, number>;
@@ -123,7 +127,7 @@ export function createVillagers(rng: Rng, spawn: (home: number) => V2): Villager
       walkSpeed: rng.range(1.9, 2.3), runSpeed: rng.range(4.0, 4.6),
       ang: rng.range(0, Math.PI * 2), rad: rng.next(), ox: rng.range(-1, 1), oz: rng.range(-1, 1),
       hunger: rng.range(10, 45), energy: rng.range(65, 95), social: rng.range(20, 60),
-      hungry: false, tired: false,
+      hungry: false, tired: false, health: 100, injured: false,
       memory: [], rel: {}, fear: {},
       trace: new Map(), thinkIn: rng.range(0, 0.4), goal: null, act: 'idle',
       flee: {}, help: null, investigate: null, lastCmd: null, plannerNote: null,

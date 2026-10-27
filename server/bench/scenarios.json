@@ -1,0 +1,1174 @@
+[
+ {
+  "id": "maya-farm",
+  "about": "One fire next to Maya at work (the Assignment 3 demo)",
+  "report": {
+   "version": 1,
+   "day": 1,
+   "clock": "13:59",
+   "trigger": "fire_started",
+   "fires": [
+    {
+     "id": 1,
+     "x": -13.271683625841703,
+     "z": 8.238979336631514,
+     "place": "Farm"
+    }
+   ],
+   "spots": [
+    {
+     "cmd": "TownSquare",
+     "name": "the Town Square",
+     "x": 0,
+     "z": 0
+    },
+    {
+     "cmd": "Marketplace",
+     "name": "the Marketplace",
+     "x": 11.25,
+     "z": -5
+    },
+    {
+     "cmd": "Farm",
+     "name": "the Farm",
+     "x": -20,
+     "z": 10
+    },
+    {
+     "cmd": "Pond",
+     "name": "the Pond",
+     "x": -15.625,
+     "z": -6.25
+    },
+    {
+     "cmd": "ForestClearing",
+     "name": "the Forest clearing",
+     "x": 20,
+     "z": 14.375
+    },
+    {
+     "cmd": "House1",
+     "name": "house 1",
+     "x": -10,
+     "z": -7.45
+    },
+    {
+     "cmd": "House2",
+     "name": "house 2",
+     "x": -8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House3",
+     "name": "house 3",
+     "x": 0,
+     "z": 17.55
+    },
+    {
+     "cmd": "House4",
+     "name": "house 4",
+     "x": 8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House5",
+     "name": "house 5",
+     "x": 21.25,
+     "z": 7.55
+    },
+    {
+     "cmd": "House6",
+     "name": "house 6",
+     "x": 21.25,
+     "z": -9.95
+    }
+   ],
+   "agents": [
+    {
+     "id": 0,
+     "name": "Maya",
+     "role": "farmer",
+     "x": -17.599424362182617,
+     "z": 9.472129821777344,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Ravi": 33,
+      "Tomas": 54,
+      "Elena": 56,
+      "Jonah": 21,
+      "Priya": 58,
+      "Oskar": 85,
+      "Lina": 74
+     }
+    },
+    {
+     "id": 1,
+     "name": "Ravi",
+     "role": "merchant",
+     "x": 11.506648063659668,
+     "z": -2.2372567653656006,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 21,
+      "Tomas": 35,
+      "Elena": 37,
+      "Jonah": 18,
+      "Priya": 80,
+      "Oskar": 65,
+      "Lina": 32
+     }
+    },
+    {
+     "id": 2,
+     "name": "Tomas",
+     "role": "guard",
+     "x": 4.808218479156494,
+     "z": -0.8967751264572144,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 57,
+      "Ravi": 18,
+      "Elena": 60,
+      "Jonah": 72,
+      "Priya": 43,
+      "Oskar": 60,
+      "Lina": 27
+     }
+    },
+    {
+     "id": 3,
+     "name": "Elena",
+     "role": "fisher",
+     "x": -11.476625442504883,
+     "z": -6.766571044921875,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 48,
+      "Ravi": 21,
+      "Tomas": 35,
+      "Jonah": 51,
+      "Priya": 29,
+      "Oskar": 52,
+      "Lina": 78
+     }
+    },
+    {
+     "id": 4,
+     "name": "Jonah",
+     "role": "woodcutter",
+     "x": 18.718692779541016,
+     "z": 9.573551177978516,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 29,
+      "Ravi": 69,
+      "Tomas": 72,
+      "Elena": 40,
+      "Priya": 56,
+      "Oskar": 17,
+      "Lina": 49
+     }
+    },
+    {
+     "id": 5,
+     "name": "Priya",
+     "role": "merchant",
+     "x": 11.618423461914062,
+     "z": -6.415019989013672,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 51,
+      "Ravi": 80,
+      "Tomas": 23,
+      "Elena": 33,
+      "Jonah": 33,
+      "Oskar": 50,
+      "Lina": 67
+     }
+    },
+    {
+     "id": 6,
+     "name": "Oskar",
+     "role": "farmer",
+     "x": 0.9509562849998474,
+     "z": 2.47015118598938,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 85,
+      "Ravi": 63,
+      "Tomas": 58,
+      "Elena": 31,
+      "Jonah": 19,
+      "Priya": 24,
+      "Lina": 17
+     }
+    },
+    {
+     "id": 7,
+     "name": "Lina",
+     "role": "villager",
+     "x": 4.382194519042969,
+     "z": -4.719723224639893,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 74,
+      "Ravi": 64,
+      "Tomas": 40,
+      "Elena": 78,
+      "Jonah": 58,
+      "Priya": 47,
+      "Oskar": 31
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "market-lunch",
+  "about": "Fire at the market at lunchtime, when most villagers are there",
+  "report": {
+   "version": 1,
+   "day": 1,
+   "clock": "16:23",
+   "trigger": "fire_started",
+   "fires": [
+    {
+     "id": 1,
+     "x": 9,
+     "z": -3.5,
+     "place": "Marketplace"
+    }
+   ],
+   "spots": [
+    {
+     "cmd": "TownSquare",
+     "name": "the Town Square",
+     "x": 0,
+     "z": 0
+    },
+    {
+     "cmd": "Marketplace",
+     "name": "the Marketplace",
+     "x": 11.25,
+     "z": -5
+    },
+    {
+     "cmd": "Farm",
+     "name": "the Farm",
+     "x": -20,
+     "z": 10
+    },
+    {
+     "cmd": "Pond",
+     "name": "the Pond",
+     "x": -15.625,
+     "z": -6.25
+    },
+    {
+     "cmd": "ForestClearing",
+     "name": "the Forest clearing",
+     "x": 20,
+     "z": 14.375
+    },
+    {
+     "cmd": "House1",
+     "name": "house 1",
+     "x": -10,
+     "z": -7.45
+    },
+    {
+     "cmd": "House2",
+     "name": "house 2",
+     "x": -8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House3",
+     "name": "house 3",
+     "x": 0,
+     "z": 17.55
+    },
+    {
+     "cmd": "House4",
+     "name": "house 4",
+     "x": 8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House5",
+     "name": "house 5",
+     "x": 21.25,
+     "z": 7.55
+    },
+    {
+     "cmd": "House6",
+     "name": "house 6",
+     "x": 21.25,
+     "z": -9.95
+    }
+   ],
+   "agents": [
+    {
+     "id": 0,
+     "name": "Maya",
+     "role": "farmer",
+     "x": -18.047327041625977,
+     "z": 9.35086441040039,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Ravi": 33,
+      "Tomas": 54,
+      "Elena": 56,
+      "Jonah": 21,
+      "Priya": 58,
+      "Oskar": 85,
+      "Lina": 74
+     }
+    },
+    {
+     "id": 1,
+     "name": "Ravi",
+     "role": "merchant",
+     "x": 12.085193634033203,
+     "z": -3.802619218826294,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 21,
+      "Tomas": 35,
+      "Elena": 37,
+      "Jonah": 18,
+      "Priya": 80,
+      "Oskar": 65,
+      "Lina": 32
+     }
+    },
+    {
+     "id": 2,
+     "name": "Tomas",
+     "role": "guard",
+     "x": 1.8432064056396484,
+     "z": 1.8642332553863525,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 57,
+      "Ravi": 18,
+      "Elena": 60,
+      "Jonah": 72,
+      "Priya": 43,
+      "Oskar": 60,
+      "Lina": 27
+     }
+    },
+    {
+     "id": 3,
+     "name": "Elena",
+     "role": "fisher",
+     "x": -14.921117782592773,
+     "z": -6.914515972137451,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 48,
+      "Ravi": 21,
+      "Tomas": 35,
+      "Jonah": 51,
+      "Priya": 29,
+      "Oskar": 52,
+      "Lina": 78
+     }
+    },
+    {
+     "id": 4,
+     "name": "Jonah",
+     "role": "woodcutter",
+     "x": 19.195194244384766,
+     "z": 13.003524780273438,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 29,
+      "Ravi": 69,
+      "Tomas": 72,
+      "Elena": 40,
+      "Priya": 56,
+      "Oskar": 17,
+      "Lina": 49
+     }
+    },
+    {
+     "id": 5,
+     "name": "Priya",
+     "role": "merchant",
+     "x": 11.696609497070312,
+     "z": -5.077536582946777,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 51,
+      "Ravi": 80,
+      "Tomas": 23,
+      "Elena": 33,
+      "Jonah": 33,
+      "Oskar": 50,
+      "Lina": 67
+     }
+    },
+    {
+     "id": 6,
+     "name": "Oskar",
+     "role": "farmer",
+     "x": -16.226099014282227,
+     "z": 11.273162841796875,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 85,
+      "Ravi": 63,
+      "Tomas": 58,
+      "Elena": 31,
+      "Jonah": 19,
+      "Priya": 24,
+      "Lina": 17
+     }
+    },
+    {
+     "id": 7,
+     "name": "Lina",
+     "role": "villager",
+     "x": -6.4675679206848145,
+     "z": -1.1348683834075928,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 74,
+      "Ravi": 64,
+      "Tomas": 40,
+      "Elena": 78,
+      "Jonah": 58,
+      "Priya": 47,
+      "Oskar": 31
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "two-fires",
+  "about": "Two fires at once in different parts of the village",
+  "report": {
+   "version": 2,
+   "day": 1,
+   "clock": "14:09",
+   "trigger": "fire_started",
+   "fires": [
+    {
+     "id": 1,
+     "x": -3.819895055288545,
+     "z": -3.7008223553747635,
+     "place": "Town Square"
+    },
+    {
+     "id": 2,
+     "x": 19.651367097896014,
+     "z": 9.174514519056983,
+     "place": "Forest clearing"
+    }
+   ],
+   "spots": [
+    {
+     "cmd": "TownSquare",
+     "name": "the Town Square",
+     "x": 0,
+     "z": 0
+    },
+    {
+     "cmd": "Marketplace",
+     "name": "the Marketplace",
+     "x": 11.25,
+     "z": -5
+    },
+    {
+     "cmd": "Farm",
+     "name": "the Farm",
+     "x": -20,
+     "z": 10
+    },
+    {
+     "cmd": "Pond",
+     "name": "the Pond",
+     "x": -15.625,
+     "z": -6.25
+    },
+    {
+     "cmd": "ForestClearing",
+     "name": "the Forest clearing",
+     "x": 20,
+     "z": 14.375
+    },
+    {
+     "cmd": "House1",
+     "name": "house 1",
+     "x": -10,
+     "z": -7.45
+    },
+    {
+     "cmd": "House2",
+     "name": "house 2",
+     "x": -8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House3",
+     "name": "house 3",
+     "x": 0,
+     "z": 17.55
+    },
+    {
+     "cmd": "House4",
+     "name": "house 4",
+     "x": 8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House5",
+     "name": "house 5",
+     "x": 21.25,
+     "z": 7.55
+    },
+    {
+     "cmd": "House6",
+     "name": "house 6",
+     "x": 21.25,
+     "z": -9.95
+    }
+   ],
+   "agents": [
+    {
+     "id": 0,
+     "name": "Maya",
+     "role": "farmer",
+     "x": -19.861751556396484,
+     "z": 8.019363403320312,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Ravi": 50,
+      "Tomas": 16,
+      "Elena": 49,
+      "Jonah": 48,
+      "Priya": 54,
+      "Oskar": 85,
+      "Lina": 74
+     }
+    },
+    {
+     "id": 1,
+     "name": "Ravi",
+     "role": "merchant",
+     "x": 10.126590728759766,
+     "z": -2.9153995513916016,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 69,
+      "Tomas": 51,
+      "Elena": 59,
+      "Jonah": 49,
+      "Priya": 80,
+      "Oskar": 23,
+      "Lina": 70
+     }
+    },
+    {
+     "id": 2,
+     "name": "Tomas",
+     "role": "guard",
+     "x": 3.005443572998047,
+     "z": -1.112623929977417,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 43,
+      "Ravi": 46,
+      "Elena": 24,
+      "Jonah": 72,
+      "Priya": 27,
+      "Oskar": 60,
+      "Lina": 62
+     }
+    },
+    {
+     "id": 3,
+     "name": "Elena",
+     "role": "fisher",
+     "x": -8.108673095703125,
+     "z": -1.1044732332229614,
+     "activity": "walk",
+     "fleeingTo": "ForestClearing",
+     "rel": {
+      "Maya": 55,
+      "Ravi": 51,
+      "Tomas": 69,
+      "Jonah": 49,
+      "Priya": 56,
+      "Oskar": 68,
+      "Lina": 78
+     }
+    },
+    {
+     "id": 4,
+     "name": "Jonah",
+     "role": "woodcutter",
+     "x": 21.099674224853516,
+     "z": 13.435078620910645,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 28,
+      "Ravi": 47,
+      "Tomas": 72,
+      "Elena": 62,
+      "Priya": 25,
+      "Oskar": 46,
+      "Lina": 41
+     }
+    },
+    {
+     "id": 5,
+     "name": "Priya",
+     "role": "merchant",
+     "x": 9.318709373474121,
+     "z": -4.657668590545654,
+     "activity": "work",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 44,
+      "Ravi": 80,
+      "Tomas": 29,
+      "Elena": 39,
+      "Jonah": 41,
+      "Oskar": 24,
+      "Lina": 15
+     }
+    },
+    {
+     "id": 6,
+     "name": "Oskar",
+     "role": "farmer",
+     "x": -0.5851783156394958,
+     "z": 2.0846171379089355,
+     "activity": "walk",
+     "fleeingTo": "ForestClearing",
+     "rel": {
+      "Maya": 85,
+      "Ravi": 16,
+      "Tomas": 21,
+      "Elena": 63,
+      "Jonah": 69,
+      "Priya": 18,
+      "Lina": 25
+     }
+    },
+    {
+     "id": 7,
+     "name": "Lina",
+     "role": "villager",
+     "x": -15.67061996459961,
+     "z": -6.832451343536377,
+     "activity": "social",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 74,
+      "Ravi": 42,
+      "Tomas": 55,
+      "Elena": 78,
+      "Jonah": 35,
+      "Priya": 59,
+      "Oskar": 54
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "festival-square",
+  "about": "Fire beside the square during the festival: everyone is in one place",
+  "report": {
+   "version": 2,
+   "day": 2,
+   "clock": "00:25",
+   "trigger": "fire_started",
+   "fires": [
+    {
+     "id": 1,
+     "x": 3.2,
+     "z": 3.4,
+     "place": "Town Square"
+    }
+   ],
+   "spots": [
+    {
+     "cmd": "TownSquare",
+     "name": "the Town Square",
+     "x": 0,
+     "z": 0
+    },
+    {
+     "cmd": "Marketplace",
+     "name": "the Marketplace",
+     "x": 11.25,
+     "z": -5
+    },
+    {
+     "cmd": "Farm",
+     "name": "the Farm",
+     "x": -20,
+     "z": 10
+    },
+    {
+     "cmd": "Pond",
+     "name": "the Pond",
+     "x": -15.625,
+     "z": -6.25
+    },
+    {
+     "cmd": "ForestClearing",
+     "name": "the Forest clearing",
+     "x": 20,
+     "z": 14.375
+    },
+    {
+     "cmd": "House1",
+     "name": "house 1",
+     "x": -10,
+     "z": -7.45
+    },
+    {
+     "cmd": "House2",
+     "name": "house 2",
+     "x": -8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House3",
+     "name": "house 3",
+     "x": 0,
+     "z": 17.55
+    },
+    {
+     "cmd": "House4",
+     "name": "house 4",
+     "x": 8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House5",
+     "name": "house 5",
+     "x": 21.25,
+     "z": 7.55
+    },
+    {
+     "cmd": "House6",
+     "name": "house 6",
+     "x": 21.25,
+     "z": -9.95
+    }
+   ],
+   "agents": [
+    {
+     "id": 0,
+     "name": "Maya",
+     "role": "farmer",
+     "x": 3.922772169113159,
+     "z": 0.3854352831840515,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Ravi": 33,
+      "Tomas": 58,
+      "Elena": 56,
+      "Jonah": 21,
+      "Priya": 58,
+      "Oskar": 85,
+      "Lina": 76
+     }
+    },
+    {
+     "id": 1,
+     "name": "Ravi",
+     "role": "merchant",
+     "x": 2.798548936843872,
+     "z": -1.8026078939437866,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 21,
+      "Tomas": 35,
+      "Elena": 37,
+      "Jonah": 18,
+      "Priya": 81,
+      "Oskar": 66,
+      "Lina": 32
+     }
+    },
+    {
+     "id": 2,
+     "name": "Tomas",
+     "role": "guard",
+     "x": 0.06570562720298767,
+     "z": 3.787583827972412,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 61,
+      "Ravi": 18,
+      "Elena": 60,
+      "Jonah": 74,
+      "Priya": 44,
+      "Oskar": 60,
+      "Lina": 27
+     }
+    },
+    {
+     "id": 3,
+     "name": "Elena",
+     "role": "fisher",
+     "x": -4.495970726013184,
+     "z": 0.007366803474724293,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 48,
+      "Ravi": 21,
+      "Tomas": 35,
+      "Jonah": 51,
+      "Priya": 29,
+      "Oskar": 52,
+      "Lina": 78
+     }
+    },
+    {
+     "id": 4,
+     "name": "Jonah",
+     "role": "woodcutter",
+     "x": -2.5417232513427734,
+     "z": 4.1496148109436035,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 29,
+      "Ravi": 69,
+      "Tomas": 74,
+      "Elena": 40,
+      "Priya": 56,
+      "Oskar": 17,
+      "Lina": 49
+     }
+    },
+    {
+     "id": 5,
+     "name": "Priya",
+     "role": "merchant",
+     "x": 2.0046567916870117,
+     "z": 0.5397282838821411,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 51,
+      "Ravi": 81,
+      "Tomas": 24,
+      "Elena": 33,
+      "Jonah": 33,
+      "Oskar": 50,
+      "Lina": 67
+     }
+    },
+    {
+     "id": 6,
+     "name": "Oskar",
+     "role": "farmer",
+     "x": 2.8670601844787598,
+     "z": -3.6995201110839844,
+     "activity": "dance",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 85,
+      "Ravi": 64,
+      "Tomas": 58,
+      "Elena": 31,
+      "Jonah": 19,
+      "Priya": 24,
+      "Lina": 17
+     }
+    },
+    {
+     "id": 7,
+     "name": "Lina",
+     "role": "villager",
+     "x": 1.1578826904296875,
+     "z": 1.642117977142334,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 76,
+      "Ravi": 64,
+      "Tomas": 40,
+      "Elena": 78,
+      "Jonah": 58,
+      "Priya": 47,
+      "Oskar": 31
+     }
+    }
+   ]
+  }
+ },
+ {
+  "id": "fire-season",
+  "about": "Fire Season at 1:40: multiple fires, some villagers already fleeing",
+  "report": {
+   "version": 7,
+   "day": 2,
+   "clock": "01:00",
+   "trigger": "fire_started",
+   "fires": [
+    {
+     "id": 3,
+     "x": -8.123951632879198,
+     "z": -4.9911344966936735,
+     "place": "Pond"
+    },
+    {
+     "id": 4,
+     "x": 20.408315872305266,
+     "z": -7.9652197182393145,
+     "place": "Marketplace"
+    }
+   ],
+   "spots": [
+    {
+     "cmd": "TownSquare",
+     "name": "the Town Square",
+     "x": 0,
+     "z": 0
+    },
+    {
+     "cmd": "Marketplace",
+     "name": "the Marketplace",
+     "x": 11.25,
+     "z": -5
+    },
+    {
+     "cmd": "Farm",
+     "name": "the Farm",
+     "x": -20,
+     "z": 10
+    },
+    {
+     "cmd": "Pond",
+     "name": "the Pond",
+     "x": -15.625,
+     "z": -6.25
+    },
+    {
+     "cmd": "ForestClearing",
+     "name": "the Forest clearing",
+     "x": 20,
+     "z": 14.375
+    },
+    {
+     "cmd": "House1",
+     "name": "house 1",
+     "x": -10,
+     "z": -7.45
+    },
+    {
+     "cmd": "House2",
+     "name": "house 2",
+     "x": -8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House3",
+     "name": "house 3",
+     "x": 0,
+     "z": 17.55
+    },
+    {
+     "cmd": "House4",
+     "name": "house 4",
+     "x": 8.75,
+     "z": 13.8
+    },
+    {
+     "cmd": "House5",
+     "name": "house 5",
+     "x": 21.25,
+     "z": 7.55
+    },
+    {
+     "cmd": "House6",
+     "name": "house 6",
+     "x": 21.25,
+     "z": -9.95
+    }
+   ],
+   "agents": [
+    {
+     "id": 0,
+     "name": "Maya",
+     "role": "farmer",
+     "x": -22.870800018310547,
+     "z": 9.900480270385742,
+     "activity": "forage",
+     "fleeingTo": null,
+     "rel": {
+      "Ravi": 46,
+      "Tomas": 49,
+      "Elena": 74,
+      "Jonah": 70,
+      "Priya": 48,
+      "Oskar": 85,
+      "Lina": 74
+     }
+    },
+    {
+     "id": 1,
+     "name": "Ravi",
+     "role": "merchant",
+     "x": -8.162335395812988,
+     "z": 13.105634689331055,
+     "activity": "sleep",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 42,
+      "Tomas": 26,
+      "Elena": 51,
+      "Jonah": 51,
+      "Priya": 80,
+      "Oskar": 54,
+      "Lina": 27
+     }
+    },
+    {
+     "id": 2,
+     "name": "Tomas",
+     "role": "guard",
+     "x": -10.868402481079102,
+     "z": -2.78212833404541,
+     "activity": "douse",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 23,
+      "Ravi": 57,
+      "Elena": 68,
+      "Jonah": 72,
+      "Priya": 67,
+      "Oskar": 39,
+      "Lina": 57
+     }
+    },
+    {
+     "id": 3,
+     "name": "Elena",
+     "role": "fisher",
+     "x": 8.174911499023438,
+     "z": 12.902548789978027,
+     "activity": "sleep",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 61,
+      "Ravi": 19,
+      "Tomas": 31,
+      "Jonah": 57,
+      "Priya": 42,
+      "Oskar": 50,
+      "Lina": 78
+     }
+    },
+    {
+     "id": 4,
+     "name": "Jonah",
+     "role": "woodcutter",
+     "x": -0.4976530969142914,
+     "z": 6.601583003997803,
+     "activity": "walk",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 56,
+      "Ravi": 32,
+      "Tomas": 72,
+      "Elena": 50,
+      "Priya": 36,
+      "Oskar": 25,
+      "Lina": 60
+     }
+    },
+    {
+     "id": 5,
+     "name": "Priya",
+     "role": "merchant",
+     "x": -8.213857650756836,
+     "z": 12.733576774597168,
+     "activity": "sleep",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 66,
+      "Ravi": 80,
+      "Tomas": 16,
+      "Elena": 39,
+      "Jonah": 62,
+      "Oskar": 47,
+      "Lina": 54
+     }
+    },
+    {
+     "id": 6,
+     "name": "Oskar",
+     "role": "farmer",
+     "x": 9.679939270019531,
+     "z": 14.033592224121094,
+     "activity": "shelter",
+     "fleeingTo": "House4",
+     "rel": {
+      "Maya": 85,
+      "Ravi": 15,
+      "Tomas": 45,
+      "Elena": 42,
+      "Jonah": 24,
+      "Priya": 60,
+      "Lina": 19
+     }
+    },
+    {
+     "id": 7,
+     "name": "Lina",
+     "role": "villager",
+     "x": -22.818315505981445,
+     "z": 6.342656135559082,
+     "activity": "forage",
+     "fleeingTo": null,
+     "rel": {
+      "Maya": 74,
+      "Ravi": 75,
+      "Tomas": 49,
+      "Elena": 78,
+      "Jonah": 61,
+      "Priya": 66,
+      "Oskar": 69
+     }
+    }
+   ]
+  }
+ }
+]

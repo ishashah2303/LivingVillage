@@ -68,6 +68,8 @@ class SituationMessage(BaseModel):
     type: Literal["situation"]
     requestId: str = Field(max_length=64)
     latencyMs: int = Field(default=0, ge=0, le=15_000)
+    model: str | None = Field(default=None, max_length=40)
+    """Backbone picked in the start menu: a key of planner.MODELS, "rules", or None for the server default."""
     report: SituationReport
 
 
@@ -82,3 +84,7 @@ class PlanMessage(BaseModel):
     """The planner's one-sentence explanation of the whole plan."""
     notes: list[str] = Field(default_factory=list)
     """Why the LLM was skipped, or which of its commands were dropped as ungrounded."""
+    model: str = ""
+    """Model id that answered ("rules" for the rule-based planner)."""
+    usage: dict | None = None
+    """inputTokens, outputTokens and list-price costUsd of the LLM call, if there was one."""

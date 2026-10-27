@@ -93,6 +93,26 @@ class RuleBasedPlanner:
 
 
 TTL_BY_VERB = {"EVACUATE": 20.0, "INVESTIGATE": 30.0, "HELP_AGENT": 25.0}
+# Room for adaptive thinking plus the plan. At 4096, Haiku 5.5 ran out on a 24-villager crowd and returned no plan.
+MAX_TOKENS = 16000
+
+# Backbones the player can pick in the start menu, with list prices (USD per million tokens) for the
+# cost readout. Haiku has no server-side refusal fallback, so its requests are sent without one.
+MODELS = {
+    "claude-opus-5-5": {"label": "Claude Opus 5.5", "input": 4.00, "output": 20.00, "fallback": True},
+    "claude-sonnet-5-5": {"label": "Claude Sonnet 5.5", "input": 2.00, "output": 10.00, "fallback": True},
+    "claude-haiku-5-5": {"label": "Claude Haiku 5.5", "input": 0.10, "output": 0.50, "fallback": False},
+}
+
+
+def usage_of(response, model: str) -> dict:
+    """Tokens and list-price cost of one response (thinking tokens are billed as output)."""
+    usage = getattr(response, "usage", None)
+    tin = getattr(usage, "input_tokens", 0) or 0
+    tout = getattr(usage, "output_tokens", 0) or 0
+    price = MODELS.get(getattr(response, "model", None) or model) or MODELS.get(model)
+    cost = (tin * price["input"] + tout * price["output"]) / 1e6 if price else 0.0
+    return {"inputTokens": tin, "outputTokens": tout, "costUsd": round(cost, 6)}
 
 LLM_SYSTEM = """You coordinate the villagers of a small simulated village during emergencies.
 You receive a snapshot of the world and reply with a short plan of high-level commands.
@@ -188,6 +208,7 @@ def ground_commands(report: SituationReport, raw: list[dict]) -> tuple[list[Comm
     kept: list[Command] = []
     dropped: list[str] = []
     seen: set[str] = set()
+    load: dict[str, int] = {}
     for c in raw:
         agent, verb, target = c.get("agent"), c.get("verb"), c.get("target")
         label = f"{verb}({target}) for {agent}"
@@ -201,6 +222,9 @@ def ground_commands(report: SituationReport, raw: list[dict]) -> tuple[list[Comm
             problem = "EVACUATE needs a safe spot"
         elif verb == "EVACUATE" and fire_dist(spots[target].x, spots[target].z) < SAFE_DISTANCE:
             problem = "spot is too close to a fire"
+        elif verb == "EVACUATE" and load.get(target, 0) >= SPOT_CAPACITY:
+            # The benchmark caught Haiku 5.5 sending a fourth villager to one spot.
+            problem = f"spot is full ({SPOT_CAPACITY} already assigned)"
         elif verb == "INVESTIGATE" and (target not in fire_ids or a.role != "guard"):
             problem = "only the guard may investigate a burning fire"
         elif verb == "HELP_AGENT" and (target not in agents or target == agent):
@@ -211,6 +235,8 @@ def ground_commands(report: SituationReport, raw: list[dict]) -> tuple[list[Comm
             dropped.append(f"{label}: {problem}")
             continue
         seen.add(agent)
+        if verb == "EVACUATE":
+            load[target] = load.get(target, 0) + 1
         kept.append(Command(agent=agent, verb=verb, arg=target, reason=str(c.get("reason", "")).strip()[:240],
                             ttlS=TTL_BY_VERB[verb]))
     return kept, dropped
@@ -229,7 +255,7 @@ class LLMPlanner:
         self.effort = effort
         self.timeout_s = timeout_s
         self._client = client
-        self.name = f"Claude ({model})"
+        self.name = MODELS[model]["label"] if model in MODELS else f"Claude ({model})"
 
     def _get_client(self):
         if self._client is None:
@@ -244,21 +270,23 @@ class LLMPlanner:
             self._client = anthropic.AsyncAnthropic(timeout=self.timeout_s, max_retries=1, default_headers=headers)
         return self._client
 
-    async def plan(self, report: SituationReport) -> tuple[list[Command], str, list[str]]:
-        """Returns (commands, one-sentence summary, dropped-command notes). Raises on any API failure."""
+    async def plan(self, report: SituationReport) -> tuple[list[Command], str, list[str], dict]:
+        """Returns (commands, one-sentence summary, dropped-command notes, usage). Raises on any API failure."""
         import json
 
         if not report.fires:
-            return [], "No fire is burning.", []
+            return [], "No fire is burning.", [], usage_of(None, self.model)
+        extra = {}
+        if MODELS.get(self.model, {}).get("fallback", True):
+            # Opt-in server-side fallback: a safety-classifier decline is retried on another model.
+            extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
         response = await self._get_client().beta.messages.create(
             model=self.model,
-            max_tokens=4096,
+            max_tokens=MAX_TOKENS,
             system=LLM_SYSTEM,
             messages=[{"role": "user", "content": build_llm_prompt(report)}],
             output_config={"effort": self.effort, "format": {"type": "json_schema", "schema": build_output_schema(report)}},
-            # Opt-in server-side fallback: a safety-classifier decline is retried on another model.
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
+            **extra,
         )
         if response.stop_reason == "refusal":
             raise RuntimeError("the model declined the request")
@@ -269,4 +297,4 @@ class LLMPlanner:
             raise RuntimeError("no text block in the response")
         data = json.loads(text)
         commands, dropped = ground_commands(report, data.get("commands", []))
-        return commands, str(data.get("summary", "")).strip(), dropped
+        return commands, str(data.get("summary", "")).strip(), dropped, usage_of(response, self.model)

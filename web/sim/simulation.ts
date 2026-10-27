@@ -23,6 +23,10 @@ export const THINK_INTERVAL = 0.4;
 export const PERCEPTION = 11;
 export const GUARD_RANGE = 45;
 export const FIRE = { radius: 1.3, blockRadius: 2.1, life: 45, hp: 10, douseRange: 3.8 };
+/** Fire Season rules: an unattended fire spreads once after `after` s, to a spot `min`-`max` m away. */
+export const SPREAD = { after: 16, min: 4.6, max: 6.5, maxAlive: 6 };
+/** Fire Season rules: smoke hurts within `smokeRadius` (more when closer); the guard's gear halves it. */
+export const HARM = { smokeRadius: 5, smokeDps: 12, guardArmor: 0.5, starveDps: 1, regen: 0.6 };
 
 const WORK: Partial<Record<Villager['role'], PlaceKey>> = { farmer: 'farm', merchant: 'market', fisher: 'pond', woodcutter: 'forest' };
 const CHAT = ['Morning!', 'Good harvest?', 'Heard the news?', 'Nice weather.', 'Prices are up.', 'See you later.'];
@@ -31,6 +35,8 @@ export interface Fire {
   id: number; kind: 'fire'; x: number; z: number; place: string; placeKey: PlaceKey;
   hp: number; life: number; alive: boolean; fade: number; removeAt: number | null;
   fled: Set<number>; obstacle: Obstacle | null; startedAt: number; safeAt: Record<number, number>;
+  /** Already spread once (Fire Season). */
+  spread: boolean;
 }
 export interface Rock { id: number; kind: 'rock'; x: number; z: number; r: number; rot: number; obstacle: Obstacle | null }
 export interface Well { id: number; kind: 'well'; x: number; z: number; r: number; obstacle: Obstacle | null }
@@ -54,6 +60,14 @@ export interface SimStats {
   rebuilds: number;
   lastRebuildMs: number;
   lastTimeToSafety: number | null;
+  firesStarted: number;
+  /** Fires put out (by the guard or the player's water), as opposed to burning out. */
+  firesOut: number;
+  injuries: number;
+  /** Planner replies, their summed latency, and the LLM's list-price spend. */
+  plans: number;
+  planLatencyS: number;
+  llmCostUsd: number;
 }
 
 /** Smoothed cost of one fixed step, in milliseconds, split by system (for the performance overlay). */
@@ -86,10 +100,19 @@ export class Simulation implements GateWorld {
   pendingPlans = 0;
   planner: PlannerTransport | null = null;
   log: LogEntry[] = [];
-  stats: SimStats = { goalSwitches: 0, stuckRecoveries: 0, accepted: 0, rejected: 0, rebuilds: 0, lastRebuildMs: 0, lastTimeToSafety: null };
+  stats: SimStats = {
+    goalSwitches: 0, stuckRecoveries: 0, accepted: 0, rejected: 0, rebuilds: 0, lastRebuildMs: 0, lastTimeToSafety: null,
+    firesStarted: 0, firesOut: 0, injuries: 0, plans: 0, planLatencyS: 0, llmCostUsd: 0,
+  };
   perf: StepPerf = { brainMs: 0, navMs: 0, boidsMs: 0 };
   /** The most recent planner reply, for the planner overlay. */
-  lastPlan: { planner: string; summary: string; latencyS: number; accepted: number; rejected: number } | null = null;
+  lastPlan: { planner: string; summary: string; latencyS: number; accepted: number; rejected: number; costUsd: number } | null = null;
+  /** Game rules: sandbox has neither; Fire Season (the challenge) turns both on. */
+  rules = { harm: false, spread: false };
+  /** Called after every fixed step (the game loop hangs its director and win/loss checks here). */
+  onStep: ((dt: number) => void) | null = null;
+  /** Set by dispose(); late planner replies and timers must not touch a freed navmesh. */
+  disposed = false;
   /** 0..1 progress between the last two fixed steps, for render interpolation. */
   alpha = 0;
   private acc = 0;
@@ -116,7 +139,7 @@ export class Simulation implements GateWorld {
 
   /** Advance by real elapsed seconds; runs fixed steps and updates the interpolation alpha. */
   advance(realDt: number) {
-    if (this.speed <= 0) return;
+    if (this.speed <= 0 || this.disposed) return;
     this.acc += Math.min(realDt, 0.1) * this.speed;
     let steps = 0;
     while (this.acc >= DT && steps < 12) {
@@ -143,7 +166,9 @@ export class Simulation implements GateWorld {
 
     const t0 = now();
     for (const v of this.villagers) {
+      if (v.injured) continue;
       this.updateNeeds(v, dt);
+      if (this.rules.harm) this.updateHealth(v, dt);
       if ((v.thinkIn -= dt) <= 0) {
         v.thinkIn = THINK_INTERVAL;
         this.think(v);
@@ -163,6 +188,7 @@ export class Simulation implements GateWorld {
     this.perf.brainMs = ema(this.perf.brainMs, t1 - t0);
     this.perf.navMs = ema(this.perf.navMs, t2 - t1);
     this.perf.boidsMs = ema(this.perf.boidsMs, t3 - t2);
+    this.onStep?.(dt);
   }
 
   /* ---------------- perception & cognition ---------------- */
@@ -190,6 +216,38 @@ export class Simulation implements GateWorld {
     v.social = clamp(v.social + dt * (asleep ? 0.05 : 0.3), 0, 100);
     if (v.act === 'eat') v.hunger = clamp(v.hunger - dt * 16, 0, 100);
     if (v.act === 'forage') v.hunger = clamp(v.hunger - dt * 5, 0, 100);
+  }
+
+  /** Smoke near a fire and starvation hurt; anywhere else health slowly comes back. */
+  private updateHealth(v: Villager, dt: number) {
+    if (!v.visible) return;
+    let dps = 0;
+    for (const f of this.aliveFires()) {
+      const d = dist(v.pos, f);
+      if (d < HARM.smokeRadius) dps += HARM.smokeDps * (1 - d / HARM.smokeRadius) * (v.role === 'guard' ? HARM.guardArmor : 1);
+    }
+    if (v.hunger >= 98) dps += HARM.starveDps;
+    v.health = clamp(v.health + (dps > 0 ? -dps : HARM.regen) * dt, 0, 100);
+    if (dps > 2 && v.sayT <= 0 && this.rng.next() < dt) say(v, '*cough*', 1.2);
+    if (v.health <= 0) this.injure(v);
+  }
+
+  private injure(v: Villager) {
+    v.injured = true;
+    v.goal = null;
+    v.target = null;
+    v.help = null;
+    v.act = 'idle';
+    if (v.agent) this.nav.crowd.removeAgent(v.agent);
+    v.agent = null;
+    v.visible = false;
+    this.stats.injuries++;
+    this.worldVersion++;
+    for (const o of this.villagers) {
+      if (o.help?.victim === v.id) o.help = null;
+      if (o !== v && !o.injured && o.rel[v.id] > 60) this.remember(o, `${v.name} was hurt in the smoke`, 8);
+    }
+    this.log_(`🚑 ${v.name} collapsed in the smoke and was carried to the healer.`, 'alert');
   }
 
   remember(v: Villager, text: string, importance: number) {
@@ -620,22 +678,26 @@ export class Simulation implements GateWorld {
     return PLACE_KEY_BY_NAME[placeName(p)];
   }
 
-  startFire(p: V2) {
-    if (!this.canPlace(p)) return null;
+  startFire(p: V2, cause: 'fire_started' | 'fire_spread' = 'fire_started') {
+    if (this.disposed || !this.canPlace(p)) return null;
     this.clearFootprint(p.x, p.z, FIRE.blockRadius);
     const place = placeName(p);
     const f: Fire = {
       id: this.uid++, kind: 'fire', x: p.x, z: p.z, place, placeKey: this.placeKeyAt(p), hp: FIRE.hp, life: FIRE.life,
-      alive: true, fade: 1, removeAt: null, fled: new Set(), obstacle: null, startedAt: this.simTime, safeAt: {},
+      alive: true, fade: 1, removeAt: null, fled: new Set(), obstacle: null, startedAt: this.simTime, safeAt: {}, spread: false,
     };
+    this.stats.firesStarted++;
     f.obstacle = this.nav.addObstacle({ kind: 'cyl', x: p.x, z: p.z, r: FIRE.blockRadius });
     this.items.push(f);
     this.worldVersion++;
     this.flock.startle = 1;
     this.nav.flush() && this.onNavRebuilt();
-    this.log_(`🔥 A fire broke out near the ${place}. NavMesh tiles rebuilt in ${this.nav.lastRebuildMs.toFixed(1)} ms.`, 'alert');
+    this.log_(
+      `🔥 ${cause === 'fire_spread' ? 'The fire spread' : 'A fire broke out'} near the ${place}. NavMesh tiles rebuilt in ${this.nav.lastRebuildMs.toFixed(1)} ms.`,
+      'alert',
+    );
     for (const v of this.villagers) v.thinkIn = Math.min(v.thinkIn, this.rng.range(0, 0.25));
-    this.requestPlan('fire_started');
+    this.requestPlan(cause);
     return f;
   }
 
@@ -651,8 +713,9 @@ export class Simulation implements GateWorld {
     return null;
   }
 
-  private endFire(f: Fire, byGuard: boolean) {
+  private endFire(f: Fire, putOut: boolean) {
     f.alive = false;
+    if (putOut) this.stats.firesOut++;
     if (f.obstacle) this.nav.removeObstacle(f.obstacle);
     f.obstacle = null;
     f.removeAt = this.simTime + 6;
@@ -661,7 +724,7 @@ export class Simulation implements GateWorld {
     const mean = times.length ? times.reduce((a, b) => a + b, 0) / times.length : null;
     this.stats.lastTimeToSafety = mean;
     this.log_(
-      `${byGuard ? '🧯 The fire near the ' + f.place + ' was put out.' : 'The fire near the ' + f.place + ' burned out.'}` +
+      `${putOut ? '🧯 The fire near the ' + f.place + ' was put out.' : 'The fire near the ' + f.place + ' burned out.'}` +
         (times.length ? ` ${times.length} reached safety, mean ${mean!.toFixed(1)} s.` : ''),
       'info',
     );
@@ -686,11 +749,54 @@ export class Simulation implements GateWorld {
         it.life -= dt;
         if (it.hp <= 0) this.endFire(it, true);
         else if (it.life <= 0) this.endFire(it, false);
+        else if (this.rules.spread && !it.spread && this.simTime - it.startedAt > SPREAD.after) this.spreadFire(it);
       } else {
         it.fade = Math.max(0, it.fade - dt * 0.8);
         if (it.removeAt != null && this.simTime >= it.removeAt) this.items.splice(this.items.indexOf(it), 1);
       }
     }
+  }
+
+  /** An unattended fire jumps once to a nearby free spot (dry grass); a fire that is being fought does not. */
+  private spreadFire(f: Fire) {
+    f.spread = true;
+    if (f.hp < FIRE.hp * 0.6 || this.aliveFires().length >= SPREAD.maxAlive) return null;
+    for (let k = 0; k < 10; k++) {
+      const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(SPREAD.min, SPREAD.max);
+      const p = { x: f.x + Math.cos(a) * r, z: f.z + Math.sin(a) * r };
+      if (p.x < WORLD.minX + 2 || p.x > WORLD.maxX - 2 || p.z < WORLD.minZ + 2 || p.z > WORLD.maxZ - 2) continue;
+      if (this.aliveFires().some(o => dist(o, p) < 3.5)) continue;
+      const child = this.startFire(p, 'fire_spread');
+      if (child) return child;
+    }
+    return null;
+  }
+
+  /** The player's water bucket: knocks `power` hit points off the nearest fire within reach of the click. */
+  douseAt(p: V2, power: number) {
+    const f = this.nearestFire(p, FIRE.blockRadius + 1.2);
+    if (!f) return null;
+    f.hp -= power;
+    this.log_(`💧 Water thrown on the fire near the ${f.place}${f.hp <= 0 ? '' : ` (${Math.ceil(f.hp)}/${FIRE.hp} left)`}.`, 'info');
+    if (f.hp <= 0) this.endFire(f, true);
+    return f;
+  }
+
+  /** The alarm bell: everyone within 20 m of a fire evacuates now, and the planner is asked to coordinate. */
+  soundAlarm() {
+    let warned = 0;
+    for (const v of this.villagers) {
+      if (v.injured || v.role === 'guard' || !v.visible) continue;
+      const f = this.nearestFire(v.pos, 20);
+      if (!f || v.flee[f.id]) continue;
+      v.flee[f.id] = { ...this.pickSafe(v, f), source: 'reflex' };
+      f.fled.add(v.id);
+      v.thinkIn = 0;
+      warned++;
+    }
+    this.log_(`🔔 The alarm bell rings: ${warned} villager${warned === 1 ? '' : 's'} evacuate${warned === 1 ? 's' : ''}.`, 'alert');
+    if (this.aliveFires().length) this.requestPlan('alarm');
+    return warned;
   }
 
   private douse(v: Villager, dt: number) {
@@ -817,6 +923,16 @@ export class Simulation implements GateWorld {
     return this.villagers.find(v => v.name.toLowerCase() === name.toLowerCase());
   }
 
+  /** Frees the navmesh. Pending planner replies and demo timers become no-ops. */
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.speed = 0;
+    this.onStep = null;
+    this.planner = null;
+    this.nav.dispose();
+  }
+
   fireById(id: number) {
     return this.items.find((i): i is Fire => i.kind === 'fire' && i.id === id);
   }
@@ -826,7 +942,7 @@ export class Simulation implements GateWorld {
       version: this.worldVersion, day: this.day, clock: this.clock(), trigger,
       fires: this.aliveFires().map(f => ({ id: f.id, x: f.x, z: f.z, place: f.place })),
       spots: allSpots(),
-      agents: this.villagers.map(v => ({
+      agents: this.villagers.filter(v => !v.injured).map(v => ({
         id: v.id, name: v.name, role: v.role, x: v.pos.x, z: v.pos.z, activity: v.act,
         fleeingTo: Object.values(v.flee)[0]?.cmd ?? null,
         rel: Object.fromEntries(this.villagers.filter(o => o !== v).map(o => [o.name, v.rel[o.id]])),
@@ -836,7 +952,7 @@ export class Simulation implements GateWorld {
 
   requestPlan(trigger: string) {
     const planner = this.planner;
-    if (!planner) return;
+    if (!planner || this.disposed) return;
     const report = this.situationReport(trigger);
     const sentAt = now();
     this.pendingPlans++;
@@ -844,12 +960,17 @@ export class Simulation implements GateWorld {
     planner
       .plan(report, this.plannerLatencyMs)
       .then(res => this.applyPlan(res, report.version, sentAt))
-      .catch(err => this.log_(`Planner unavailable (${err instanceof Error ? err.message : err}); villagers rely on reflexes.`, 'alert'))
+      .catch(err => this.disposed || this.log_(`Planner unavailable (${err instanceof Error ? err.message : err}); villagers rely on reflexes.`, 'alert'))
       .finally(() => this.pendingPlans--);
   }
 
   applyPlan(res: PlanResult, version: number, sentAt: number) {
+    if (this.disposed) return;
     const latencyMs = now() - sentAt;
+    const costUsd = res.usage?.costUsd ?? 0;
+    this.stats.plans++;
+    this.stats.planLatencyS += latencyMs / 1000;
+    this.stats.llmCostUsd += costUsd;
     const stale = this.worldVersion !== version;
     this.log_(
       `🧠 ${res.planner} (${res.source}) replied after ${(latencyMs / 1000).toFixed(1)} s with ${res.commands.length} commands` +
@@ -858,7 +979,7 @@ export class Simulation implements GateWorld {
     );
     for (const note of res.notes ?? []) this.log_(`Planner note: ${note}.`, 'nav');
     if (res.summary) this.log_(`🧠 Plan: ${res.summary}`, 'plan');
-    const last = { planner: res.planner, summary: res.summary ?? '', latencyS: latencyMs / 1000, accepted: 0, rejected: 0 };
+    const last = { planner: res.planner, summary: res.summary ?? '', latencyS: latencyMs / 1000, accepted: 0, rejected: 0, costUsd };
     this.lastPlan = last;
     for (const c of res.commands) {
       const verdict = validateCommand(this, c, latencyMs / 1000);

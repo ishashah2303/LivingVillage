@@ -29,6 +29,10 @@ export interface PlanResult {
   summary?: string;
   /** Server notes: why the LLM was skipped, or which of its commands were dropped as ungrounded. */
   notes?: string[];
+  /** Model id that answered ("rules" for the rule-based planner). */
+  model?: string;
+  /** Tokens and list-price cost of the LLM call, when there was one. */
+  usage?: { inputTokens: number; outputTokens: number; costUsd: number } | null;
 }
 
 export interface SituationReport {
@@ -126,6 +130,7 @@ export const inDanger = (v: Villager, fires: V2[]) =>
 export function validateCommand(w: GateWorld, c: Command, ageS: number): Verdict {
   const v = w.villagerByName(c.agent);
   if (!v) return { ok: false, reason: `unknown villager "${c.agent}"` };
+  if (v.injured) return { ok: false, reason: `${v.name} is injured and with the healer` };
   if (ageS > c.ttlS) return { ok: false, reason: `expired (${ageS.toFixed(1)} s old, ttl ${c.ttlS} s)` };
   const fires = w.aliveFires();
   switch (c.verb) {
@@ -147,6 +152,7 @@ export function validateCommand(w: GateWorld, c: Command, ageS: number): Verdict
     case 'HELP_AGENT': {
       const victim = w.villagerByName(c.arg);
       if (!victim) return { ok: false, reason: `unknown villager "${c.arg}"` };
+      if (victim.injured) return { ok: false, reason: `${victim.name} is already with the healer` };
       if (!inDanger(victim, fires)) return { ok: false, reason: `${victim.name} already reached safety` };
       if (inDanger(v, fires)) return { ok: false, reason: `${v.name} is in danger too` };
       return { ok: true };

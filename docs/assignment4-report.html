@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Living Village – Assignment 4 Report</title>
+<style>
+  @page { size: Letter; margin: 0.5in 0.55in; }
+  body { font: 9.4pt/1.32 "Segoe UI", Arial, sans-serif; color: #1d1d1d; margin: 0; }
+  h1 { font-size: 14.5pt; margin: 0 0 1px; }
+  .sub { color: #555; margin: 0 0 6px; }
+  h2 { font-size: 11pt; margin: 9px 0 3px; border-bottom: 1px solid #ccc; padding-bottom: 1px; }
+  h3 { font-size: 9.6pt; margin: 6px 0 1px; }
+  h2, h3 { break-after: avoid; }
+  p { margin: 2px 0 4px; }
+  ul { margin: 1px 0 4px; padding-left: 16px; }
+  li { margin: 0.5px 0; }
+  table { border-collapse: collapse; margin: 3px 0 4px; font-size: 8.6pt; width: 100%; }
+  th, td { border: 1px solid #bbb; padding: 2px 5px; text-align: left; vertical-align: top; }
+  th { background: #f0f0f0; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.wk { white-space: nowrap; font-weight: 600; }
+  tr.buffer td { background: #fff6dc; }
+  tr.ms td:last-child { font-weight: 600; }
+  code { font: 8.4pt Consolas, monospace; }
+  a { color: #1f5fa8; text-decoration: none; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .note { color: #555; font-size: 8.6pt; }
+</style>
+</head>
+<body>
+
+<h1>Living Village – Assignment 4: Production Plan &amp; MVP 2.0 (Alpha)</h1>
+<p class="sub">Group JJ: Harjeet Singh Chahal (hc1242, group leader), Isha Nimesh Shah (ins28) ·
+Pillars: NPC AI / behavior trees, pathfinding &amp; navigation (Recast/Detour), swarm &amp; boids, LLM planner<br>
+<b>Playable alpha:</b> <a href="https://ishashah2303.github.io/LivingVillage/">https://ishashah2303.github.io/LivingVillage/</a>
+(the LLM planner runs on Render and can take a minute to wake up; until then the same rules run in the browser) ·
+<b>Source:</b> <a href="https://github.com/ishashah2303/LivingVillage">github.com/ishashah2303/LivingVillage</a></p>
+
+<h2>1. Production schedule (Weeks 10–15)</h2>
+<table>
+  <tr><th style="width:11%">Week</th><th style="width:38%">Engineering</th><th style="width:25%">Assets</th><th style="width:26%">Integration / milestone</th></tr>
+  <tr><td class="wk">10 · Nov 2–8</td>
+    <td><b>Scale the cast</b> from 8 to 32–64 villagers: generated villagers, staggered behavior-tree ticks with a distance-based think rate, spatial hash for perception, instanced rendering. Replace the greedy evacuation assignment with <b>min-cost flow</b> (capacity-constrained, optimal).</td>
+    <td>AI-generated low-poly villager (Meshy / Tripo), rigged with Mixamo idle / walk / run / work clips.</td>
+    <td>Crowd-size switch in the stress test; benchmark rerun at 8 / 32 / 64 villagers.</td></tr>
+  <tr><td class="wk">11 · Nov 9–15</td>
+    <td><b>More emergency types</b> through one hazard abstraction: fire, flood at the pond, storm (blackout + falling trees), sickness. Generalize the command grammar (<code>SHELTER_IN_PLACE</code>, <code>FETCH(item)</code>) and the safety gate. Danger-area costs in the navmesh (Detour query filter) so routes avoid smoke, not just obstacles.</td>
+    <td>Flood water and rain shaders, AI-generated storm skybox, hazard icons.</td>
+    <td>Fire Season becomes a "Season" mode with mixed emergencies.</td></tr>
+  <tr class="ms"><td class="wk">12 · Nov 16–22</td>
+    <td><b>Hierarchical LLM planning</b>: cluster villagers, let the rules / min-cost flow assign individuals and let the LLM decide group-level and social choices, so the prompt grows with groups, not people. <b>Model cascade</b>: Haiku first, escalate to Sonnet when grounding drops commands or the crowd is large; prompt caching for the fixed system prompt. pgvector memory retrieval into the prompt.</td>
+    <td>Animation blending on the rigged characters; ambient and UI sound (procedural fire crackle, bell).</td>
+    <td><b>Beta (feature complete).</b> Playtest with 5 classmates; log time-to-safety and goal switches.</td></tr>
+  <tr><td class="wk">13 · Nov 23–29<br><span class="note">Thanksgiving</span></td>
+    <td>Evaluation suite: per-backbone and per-crowd-size metrics (time to safety, goal switches/min, stuck recoveries, commands accepted vs. rejected, cost per game). Boids in a Web Worker. Balance pass from playtest data.</td>
+    <td>Menu art and logo, end-screen illustrations.</td>
+    <td>Short believability survey (playtesters rate villager behavior).</td></tr>
+  <tr class="ms"><td class="wk">14 · Nov 30–Dec 6</td>
+    <td><b>Feature freeze.</b> Low-end GPU settings (shadow quality, DPR cap), keyboard and color accessibility, final benchmark run with all backbones.</td>
+    <td>Demo video capture and edit; final screenshots.</td>
+    <td><b>Release candidate</b> deployed (GitHub Pages + Render).</td></tr>
+  <tr class="buffer"><td class="wk">15 · Dec 7–13</td>
+    <td colspan="3"><b>Buffer week – no new features.</b> Bug fixing from the RC, documentation (README, architecture, benchmark write-up), polish, final report and submission (due ~Dec 11).</td></tr>
+</table>
+
+<h2>2. MVP 2.0: the full loop</h2>
+<p><b>Start state:</b> a menu over the live village picks the mode (<i>Fire Season</i> challenge or <i>Sandbox</i>) and the
+planner's LLM backbone (Opus 5.5, Sonnet 5.5, Haiku 5.5 or rules only). <b>Active state:</b> in Fire Season the player has 4 minutes
+until the rains come. A director starts fires faster and faster, unattended fires spread, smoke hurts villagers, and a food shortage hits
+midway. The player has water buckets (refilling), food baskets and an alarm bell; the villagers' behavior trees, the Detour crowd, the boids
+and the LLM planner do the rest. The HUD shows time left, how much of the village stands, who is hurt and what is burning.
+<b>End state:</b> the village wins when the rains come (1–3 stars and a score) and loses at 0% integrity or 3 villagers hurt. Both lead to a
+results screen (time held out, fires put out, planner commands accepted / rejected, mean planner latency, LLM cost), then <i>Play again</i>
+or <i>Main menu</i>. Sandbox keeps the Assignment 3 world editor and ends with a session summary.
+All pillars run inside the game: the behavior tree got a new branch (a hurt guard stops fighting and flees), navmesh obstacles change with
+every fire, the flock scatters from fires, and the planner coordinates evacuations.</p>
+
+<h2>3. Release notes (since Assignment 3)</h2>
+<div class="cols">
+<div>
+<h3>New features</h3>
+<ul>
+  <li>Game loop: start menu, Fire Season challenge, win / loss / session end screens, Play again and Main menu (each game gets a fresh simulation).</li>
+  <li>HUD (timer, village integrity, hurt, burning, pause banner); player tools with charges and cooldown; keys 1–3, <code>B</code>, <code>Space</code>.</li>
+  <li>Game director with escalating waves; fire spread; health, smoke damage and starvation; injured villagers leave the map.</li>
+  <li>Planner backbone chosen per game in the menu; every plan reports its tokens and list-price cost (planner panel and end screen).</li>
+  <li>Backbone benchmark (<code>server/bench</code>) over scenarios exported from real simulation runs.</li>
+  <li>Tests: 31 simulation tests (+11, including full games played headless: an idle player must lose, a simple bot must win) and 18 server tests (+2).</li>
+</ul>
+<h3>Bug fixes</h3>
+<ul>
+  <li>Haiku plans were cut off at <code>max_tokens</code> 4096 on large crowds and came back empty; raised to 16k (found by the benchmark).</li>
+  <li>Server grounding did not enforce the 3-villagers-per-spot limit; it now drops the extra command.</li>
+  <li>A planner reply arriving after a restart could touch a freed navmesh; the WASM navmesh is now disposed on restart and late replies are ignored.</li>
+  <li>The "Stale plan" demo left the simulated latency at 4 s for the rest of the session.</li>
+  <li>The top bar overflowed at phone width.</li>
+</ul>
+</div>
+<div>
+<h3>Known issues</h3>
+<ul>
+  <li>LLM latency has long tails (one Opus call took 92 s, one Haiku call 64 s); after 30 s the rules answer instead, so the village never waits, but that plan is lost.</li>
+  <li>A Fire Season game sends about 15–20 plans; the hosted planner's spend cap (20 Claude plans per visitor per hour) makes a second game in the same hour fall back to the rules.</li>
+  <li>Evacuation coverage drops to ~65% at 32 villagers for every planner: 11 safe spots × capacity 3 is not enough (Week 10).</li>
+  <li>Villagers asleep indoors ignore a fire next to their house.</li>
+  <li>Balance is tuned with headless bot games only; no human playtest yet (Week 12).</li>
+  <li>Characters are still procedural, there is no audio, and the free Render tier sleeps after 15 idle minutes.</li>
+</ul>
+</div>
+</div>
+
+<h2>4. Response to feedback: other LLM backbones and scaling</h2>
+<p>Same prompt, schema and grounding for every model, effort <code>low</code>, 7 scenarios exported from real runs (5 with 8 villagers,
+2 synthetic crowds of 24 and 32), 2 runs each; 56 calls cost about $0.82 in total. <i>Coverage</i> = share of villagers within 14 m of a fire
+given a valid evacuation; <i>validity</i> = share of the model's commands that pass grounding.</p>
+<table>
+  <tr><th>Planner</th><th>Median latency (max)</th><th>Cost / plan, 8 → 24–32 villagers</th><th>Valid</th><th>Coverage</th><th>Est. cost / game*</th></tr>
+  <tr><td>Claude Opus 5.5</td><td class="n">9.7 s (92 s)</td><td class="n">$0.023 → $0.078</td><td class="n">100%</td><td class="n">94%</td><td class="n">~$0.40</td></tr>
+  <tr><td>Claude Sonnet 5.5</td><td class="n">4.2 s (15 s)</td><td class="n">$0.011 → $0.032</td><td class="n">97%</td><td class="n">91%</td><td class="n">~$0.19</td></tr>
+  <tr><td>Claude Haiku 5.5</td><td class="n">11.1 s (64 s)</td><td class="n">$0.001 → $0.003</td><td class="n">100%</td><td class="n">94%</td><td class="n">~$0.02</td></tr>
+  <tr><td>Rule-based</td><td class="n">&lt;1 ms</td><td class="n">$0</td><td class="n">100%</td><td class="n">94%</td><td class="n">$0</td></tr>
+</table>
+<p class="note">* about 17 plans in an 8-villager Fire Season game. Prices: Opus $4/$20, Sonnet $2/$10, Haiku $0.10/$0.50 per million input/output tokens.</p>
+<ul>
+  <li><b>Backbones.</b> On our task Sonnet 5.5 is the best default: fastest (4.2 s median), half of Opus's cost, similar coverage; its 3%
+    invalid commands (spots too close to a fire) are all caught by grounding. Haiku is ~20× cheaper than Opus with equal coverage but
+    thinks long even at low effort (2.5k output tokens on average), so it is <i>not</i> faster. The menu now defaults to Sonnet, and Week 12 adds a
+    Haiku-first cascade.</li>
+  <li><b>Scaling.</b> The prompt grows linearly with the cast (2.9k → 8.9k input tokens from 8 to 32 villagers; Sonnet and Opus latency ×2–2.6), and coverage
+    is capped by spot capacity, not by the model. Planned algorithms: min-cost flow for capacity-constrained assignment and flow fields for
+    mass evacuation (W10); hierarchical planning so the LLM plans per group (W12); BT time-slicing, spatial hashing and instancing for
+    characters and objects (W10); one hazard abstraction with per-hazard navmesh area costs for new emergency types (W11).</li>
+</ul>
+
+</body>
+</html>

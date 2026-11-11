@@ -26,4 +26,4 @@ Weather uses simulation time, one rain-line draw call, low-poly clouds and alter
 - Production static export and TypeScript passed.
 - Browser: construction completed through normal controls; meadow opened and camera reframed; villagers chose EastMeadow during a fire; rain visuals and event state appeared together.
 
-The November 9 report and benchmark JSON describe the earlier beta snapshot. They are retained as historical evidence; their FPS numbers are not new measurements of rain or the expanded map. The new events need broader performance and human playtesting before claiming the same frame-time target.
+The Assignment 5 report now includes the November 11 events. Its November 9 benchmark JSON remains historical evidence; those FPS numbers are not measurements of rain or the expanded map. The new events need fresh performance captures and human playtesting before claiming the same frame-time target.

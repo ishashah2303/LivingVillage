@@ -50,8 +50,8 @@ let recastReady: Promise<void> | null = null;
 /** Loads the WebAssembly module once (the default build inlines the .wasm, so no bundler config is needed). */
 export const initRecast = () => (recastReady ??= init());
 
-function groundGeometry() {
-  const { minX, maxX, minZ, maxZ } = WORLD;
+function groundGeometry(bounds: typeof WORLD) {
+  const { minX, maxX, minZ, maxZ } = bounds;
   const NX = 12, NZ = 8, pos: number[] = [], idx: number[] = [];
   for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) pos.push(minX + ((maxX - minX) * i) / NX, 0, minZ + ((maxZ - minZ) * j) / NZ);
   for (let j = 0; j < NZ; j++)
@@ -76,19 +76,20 @@ export class NavWorld {
     readonly tileCache: TileCache,
     readonly query: NavMeshQuery,
     readonly crowd: Crowd,
+    readonly bounds: typeof WORLD,
   ) {}
 
-  static async create(statics: ObstacleSpec[] = staticObstacles()): Promise<NavWorld> {
+  static async create(statics: ObstacleSpec[] = staticObstacles(), bounds = WORLD): Promise<NavWorld> {
     await initRecast();
-    const { pos, idx } = groundGeometry();
+    const { pos, idx } = groundGeometry(bounds);
     const res = generateTileCache(pos, idx, {
       ...NAV_CONFIG,
-      bounds: [[WORLD.minX - 1, -1, WORLD.minZ - 1], [WORLD.maxX + 1, 4, WORLD.maxZ + 1]],
+      bounds: [[bounds.minX - 1, -1, bounds.minZ - 1], [bounds.maxX + 1, 4, bounds.maxZ + 1]],
     });
     if (!res.success) throw new Error(`NavMesh generation failed: ${res.error}`);
     const query = new NavMeshQuery(res.navMesh);
     const crowd = new Crowd(res.navMesh, { maxAgents: MAX_VILLAGERS, maxAgentRadius: 0.6 });
-    const world = new NavWorld(res.navMesh, res.tileCache, query, crowd);
+    const world = new NavWorld(res.navMesh, res.tileCache, query, crowd, bounds);
     // TileCache queues at most 64 obstacle requests, so flush in batches.
     statics.forEach((s, i) => {
       world.addObstacle(s);

@@ -112,6 +112,7 @@ export function ruleBasedPlan(r: SituationReport): Command[] {
 export const GATE = { safeDistance: 12, dangerRadius: 14 };
 
 export interface GateWorld {
+  spotByCmd?(cmd: string): { x: number; z: number; cmd: string } | undefined;
   villagerByName(name: string): Villager | undefined;
   fireById(id: number): { id: number; alive: boolean } | undefined;
   aliveFires(): V2[];
@@ -135,7 +136,7 @@ export function validateCommand(w: GateWorld, c: Command, ageS: number): Verdict
   const fires = w.aliveFires();
   switch (c.verb) {
     case 'EVACUATE': {
-      const s = spotByCmd(c.arg);
+      const s = w.spotByCmd ? w.spotByCmd(c.arg) : spotByCmd(c.arg);
       if (!s) return { ok: false, reason: `unknown place "${c.arg}"` };
       if (!fires.length) return { ok: false, reason: 'no fire is burning any more' };
       const fd = Math.min(...fires.map(f => distXZ(s.x, s.z, f.x, f.z)));

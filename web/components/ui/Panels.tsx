@@ -4,7 +4,7 @@ import { CROWD_PRESETS, ROLE_LABEL } from '@/sim/agents';
 import { LocalPlanner } from '@/sim/localPlanner';
 import { BOIDS } from '@/sim/boids';
 import { activePath, flatten, type Status } from '@/sim/bt';
-import { PLACES } from '@/sim/layout';
+import { LAND_PROJECT, PLACES } from '@/sim/layout';
 import { SEASON } from '@/sim/game';
 import { backboneLabel } from '@/sim/plannerClient';
 import { ACTIVITY_LABEL, DT } from '@/sim/simulation';
@@ -171,6 +171,22 @@ function EditorTools() {
           <span className="ic">🌾</span>Shortage
         </button>
       </div>
+
+      <div className="pair world-events">
+        <button className={`tool${sim.rain > 0 ? ' on' : ''}`} disabled={sim.rainCooldown > 0}
+          onClick={() => { sim.startRain(); refresh(); }} title="A 25-second shower weakens fires and stops spread. Available again after 60 seconds.">
+          <span className="ic">🌧</span>{sim.rain > 0 ? `Rain · ${Math.ceil(sim.rain)}s` : sim.rainCooldown > 0 ? `Rain in ${Math.ceil(sim.rainCooldown)}s` : 'Rain shower'}
+        </button>
+        <button className={`tool${sim.buildingLand ? ' on' : ''}`} disabled={sim.meadowOpen}
+          onClick={() => { sim.toggleLandProject(); refresh(); }} title="Volunteers build an eastern meadow: 800 m² of new land and three refuges. Click again to pause.">
+          <span className="ic">🌱</span>{sim.meadowOpen ? 'Meadow open' : sim.buildingLand ? 'Pause building' : sim.landWork > 0 ? 'Resume building' : 'Reclaim land'}
+        </button>
+      </div>
+      {(sim.buildingLand || sim.landWork > 0) && <div className="land-progress" role="status">
+        <b>{sim.meadowOpen ? 'East meadow · +33% land' : `Reclaiming land · ${Math.floor(sim.landWork / LAND_PROJECT.workRequired * 100)}%`}</b>
+        <progress aria-label="Land reclamation progress" value={sim.landWork} max={LAND_PROJECT.workRequired} />
+        <span>{sim.meadowOpen ? 'New refuges and buildable ground. Right-drag to pan; scroll to zoom.' : !sim.buildingLand ? 'Paused. Work is saved.' : sim.rain > 0 ? 'Waiting for dry weather.' : sim.landInDanger ? 'Danger near the site. Put out the fire to resume.' : sim.landWorkers ? `${sim.landWorkers} volunteers building` : 'Waiting for volunteers to arrive; needs and emergencies come first.'}</span>
+      </div>}
 
       <h3>Demos</h3>
       <button className="tool demo" onClick={() => sim.startFireNear('Maya') && select(0)} title="A fire a few meters from Maya; watch her decide and the planner coordinate">

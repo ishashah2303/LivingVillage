@@ -50,6 +50,10 @@ export const villagerTree = Selector<Ctx>('root', 'Villager brain', [
     Condition('isTired', 'Exhausted? (below 15 until above 85)', c => c.sim.checkTired(c.v)),
     Action('rest', 'Go home and rest', c => c.sim.actRest(c.v)),
   ]),
+  Sequence('landProject', 'Community construction', [
+    Condition('canBuildLand', 'Volunteer available and construction site safe and dry?', c => c.sim.canBuildLand(c.v)),
+    Action('buildLand', 'Reclaim land at the eastern boundary', c => c.sim.actBuildLand(c.v)),
+  ]),
   Selector('routine', 'Daily routine', [
     Sequence('nightB', 'Night', [
       Condition('isNight', '22:00 to 06:00?', c => c.sim.hour >= 22 || c.sim.hour < 6),

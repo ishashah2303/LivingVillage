@@ -14,6 +14,7 @@ import StaticMerge from './StaticMerge';
 import Terrain from './Terrain';
 import Trees from './Trees';
 import Villagers from './Villagers';
+import { LandExpansion, RainShower } from './WorldEvents';
 
 /** Advances the simulation once per rendered frame, before anything reads it. */
 function SimDriver() {
@@ -145,6 +146,8 @@ export default function Stage() {
         <NavDebug />
         <Ground />
         <Cursor />
+        <LandExpansion />
+        <RainShower />
       </group>
       <CameraRig />
       <DebugHandles />

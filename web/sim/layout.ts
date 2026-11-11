@@ -9,6 +9,13 @@ export const S = 1.25;
 export const g2w = (gx: number, gy: number): V2 => ({ x: (gx - 24) * S, z: (gy - 16) * S });
 
 export const WORLD = { minX: -30, maxX: 30, minZ: -20, maxZ: 20 };
+export const EXPANDED_WORLD = { ...WORLD, maxX: 50 };
+export const LAND_PROJECT = { x: 27, z: 0, workRequired: 36 };
+export const MEADOW_SPOTS = [
+  { name: 'the North meadow', cmd: 'NorthMeadow', x: 40, z: -10 },
+  { name: 'the East meadow', cmd: 'EastMeadow', x: 45, z: 0 },
+  { name: 'the South meadow', cmd: 'SouthMeadow', x: 40, z: 10 },
+];
 
 export type PlaceKey = 'square' | 'market' | 'farm' | 'pond' | 'forest' | 'post';
 export interface Place {

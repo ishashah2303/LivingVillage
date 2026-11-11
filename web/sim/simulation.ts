@@ -8,10 +8,10 @@ import type { Obstacle } from 'recast-navigation';
 import { bond, createVillagers, say, validateVillagerCount, type Activity, type FleeTarget, type Goal, type Villager } from './agents';
 import type { Status } from './bt';
 import { Flock } from './boids';
-import { HOUSES, PLACES, SAFE_SPOTS, WORLD, placeName, spotByCmd, type PlaceKey, type SafeSpot } from './layout';
+import { EXPANDED_WORLD, LAND_PROJECT, MEADOW_SPOTS, HOUSES, PLACES, SAFE_SPOTS, WORLD, placeName, type PlaceKey, type SafeSpot } from './layout';
 import { Rng, clamp, dist, distXZ, lerpAngle, type V2 } from './math';
 import { AGENT_RADIUS, NavWorld } from './nav';
-import { allSpots, GATE, inDanger, validateCommand, type Command, type GateWorld, type PlanResult, type SituationReport } from './planner';
+import { GATE, inDanger, validateCommand, type Command, type GateWorld, type PlanResult, type SituationReport } from './planner';
 import { villagerTree } from './villagerTree';
 
 /** Fixed simulation step (s). Rendering interpolates between steps. */
@@ -94,6 +94,17 @@ export class Simulation implements GateWorld {
   speed = 1;
   festival = 0;
   shortage = 0;
+  rain = 0;
+  rainCooldown = 0;
+  meadowOpen = false;
+  buildingLand = false;
+  landWork = 0;
+  landWorkers = 0;
+  private landLocks: Obstacle[] = [];
+  get bounds() { return this.meadowOpen ? EXPANDED_WORLD : WORLD; }
+  get landInDanger() { return !!this.nearestFire(LAND_PROJECT, 12); }
+  get safeSpots(): SafeSpot[] { return this.meadowOpen ? [...SAFE_SPOTS, ...MEADOW_SPOTS] : SAFE_SPOTS; }
+  spotByCmd(cmd: string) { return this.safeSpots.find(s => s.cmd === cmd); }
   /** Bumped on every world change; planner replies carry the version they were computed for. */
   worldVersion = 0;
   plannerLatencyMs = 1500;
@@ -121,6 +132,16 @@ export class Simulation implements GateWorld {
   private escapeChecks = new WeakMap<Villager, string>();
 
   private constructor(readonly nav: NavWorld, seed: number, villagerCount: number) {
+    // Prebake the extension but carve it away until construction finishes. Small strips
+    // stay within Detour's touched-tile limit; existing agents never need replacing.
+    if (nav.bounds.maxX >= EXPANDED_WORLD.maxX) {
+      for (let z = -16; z <= 16; z += 8) {
+        const lock = nav.addObstacle({ kind: 'box', x: 40.5, z, hx: 10.5, hz: 4.1 });
+        if (!lock) throw new Error('Could not reserve the meadow construction area');
+        this.landLocks.push(lock);
+      }
+      nav.flush();
+    }
     this.rng = new Rng(seed);
     this.villagers = createVillagers(this.rng, home => {
       const d = HOUSES[home].door;
@@ -133,7 +154,7 @@ export class Simulation implements GateWorld {
 
   static async create(opts: { seed?: number; nav?: NavWorld; villagerCount?: number } = {}) {
     const count = validateVillagerCount(opts.villagerCount ?? 8);
-    const nav = opts.nav ?? (await NavWorld.create());
+    const nav = opts.nav ?? (await NavWorld.create(undefined, EXPANDED_WORLD));
     return new Simulation(nav, opts.seed ?? 5, count);
   }
 
@@ -164,7 +185,12 @@ export class Simulation implements GateWorld {
     if (this.hour >= 24) { this.hour -= 24; this.day++; }
     if (this.festival > 0 && (this.festival -= dt) <= 0) this.setFestival(false);
     if (this.shortage > 0 && (this.shortage -= dt) <= 0) this.setShortage(false);
+    this.rainCooldown = Math.max(0, this.rainCooldown - dt);
     this.updateFires(dt);
+    if (this.rain > 0) {
+      this.rain = Math.max(0, this.rain - dt);
+      if (!this.rain) this.log_('The shower passes. Fires can spread again.');
+    }
 
     const t0 = now();
     for (const v of this.villagers) {
@@ -184,6 +210,7 @@ export class Simulation implements GateWorld {
     if (this.nav.flush()) this.onNavRebuilt();
     this.nav.step(dt);
     for (const v of this.villagers) this.syncAgent(v, dt);
+    this.updateLandProject(dt);
     const t2 = now();
     this.flock.step(dt, { time: this.simTime, hour: this.hour, fires: this.aliveFires() }, this.rng);
     const t3 = now();
@@ -336,7 +363,7 @@ export class Simulation implements GateWorld {
   pickSafe(v: Villager, f: V2): SafeSpot | null {
     let best: SafeSpot | null = null, bs = -Infinity;
     const fires = this.aliveFires();
-    for (const s of SAFE_SPOTS) {
+    for (const s of this.safeSpots) {
       if (!this.escapePoint(v, s)) continue;
       const df = Math.min(dist(s, f), ...fires.map(o => dist(s, o)));
       const score = (df > 15 ? 100 : 0) + df - 0.4 * dist(s, v.pos);
@@ -497,6 +524,10 @@ export class Simulation implements GateWorld {
   }
 
   actWork(v: Villager): Status {
+    if (this.meadowOpen && v.role === 'villager' && Math.floor(this.simTime / 16) % 2 === 0) {
+      return this.intend(v, this.avoidFire(v, { key: 'visitMeadow', label: 'Exploring the new meadow',
+        x: 40 + v.ox * 3, z: v.oz * 8, act: 'social', source: 'routine' }));
+    }
     if (v.role === 'guard') {
       const route: PlaceKey[] = ['post', 'square', 'market'], k = Math.floor(this.simTime / 12) % 3;
       return this.intend(v, this.avoidFire(v, { key: `patrol${k}`, label: `Patrolling the ${PLACES[route[k]].name}`, ...this.spot(route[k], v), act: 'idle', source: 'routine' }));
@@ -522,6 +553,7 @@ export class Simulation implements GateWorld {
 
   actSocialize(v: Villager): Status {
     let best = { ...this.spot('square', v), name: 'the Town Square' };
+    if (this.meadowOpen && v.id % 2) best = { x: 40 + v.ox * 3, z: v.oz * 6, name: 'the new meadow' };
     for (const it of this.items)
       if (it.kind === 'well' && dist(it, v.pos) < dist(best, v.pos))
         best = { x: it.x + Math.cos(v.ang) * 2, z: it.z + Math.sin(v.ang) * 2, name: 'the new well' };
@@ -710,6 +742,8 @@ export class Simulation implements GateWorld {
   /* ---------------- world editing ---------------- */
 
   canPlace(p: V2) {
+    const b = this.bounds;
+    if (p.x < b.minX || p.x > b.maxX || p.z < b.minZ || p.z > b.maxZ) return false;
     const s = this.nav.snap(p, 0.4);
     return !!s && dist(s, p) < 0.4;
   }
@@ -787,9 +821,10 @@ export class Simulation implements GateWorld {
       if (it.kind !== 'fire') continue;
       if (it.alive) {
         it.life -= dt;
+        if (this.rain > 0) it.hp -= dt * 1.4;
         if (it.hp <= 0) this.endFire(it, true);
         else if (it.life <= 0) this.endFire(it, false);
-        else if (this.rules.spread && !it.spread && this.simTime - it.startedAt > SPREAD.after) this.spreadFire(it);
+        else if (this.rain <= 0 && this.rules.spread && !it.spread && this.simTime - it.startedAt > SPREAD.after) this.spreadFire(it);
       } else {
         it.fade = Math.max(0, it.fade - dt * 0.8);
         if (it.removeAt != null && this.simTime >= it.removeAt) this.items.splice(this.items.indexOf(it), 1);
@@ -804,7 +839,8 @@ export class Simulation implements GateWorld {
     for (let k = 0; k < 10; k++) {
       const a = this.rng.range(0, Math.PI * 2), r = this.rng.range(SPREAD.min, SPREAD.max);
       const p = { x: f.x + Math.cos(a) * r, z: f.z + Math.sin(a) * r };
-      if (p.x < WORLD.minX + 2 || p.x > WORLD.maxX - 2 || p.z < WORLD.minZ + 2 || p.z > WORLD.maxZ - 2) continue;
+      const b = this.bounds;
+      if (p.x < b.minX + 2 || p.x > b.maxX - 2 || p.z < b.minZ + 2 || p.z > b.maxZ - 2) continue;
       if (this.aliveFires().some(o => dist(o, p) < 3.5)) continue;
       const child = this.startFire(p, 'fire_spread');
       if (child) return child;
@@ -913,7 +949,8 @@ export class Simulation implements GateWorld {
     let placed = 0, worst = 0;
     const t0 = now();
     for (let k = 0; k < n * 20 && placed < n; k++) {
-      const p = { x: this.rng.range(WORLD.minX + 2, WORLD.maxX - 2), z: this.rng.range(WORLD.minZ + 2, WORLD.maxZ - 2) };
+      const b = this.bounds;
+      const p = { x: this.rng.range(b.minX + 2, b.maxX - 2), z: this.rng.range(b.minZ + 2, b.maxZ - 2) };
       if (this.addBlocking(p, 'rock', 1.25, '', true)) {
         placed++;
         worst = Math.max(worst, this.nav.lastRebuildMs);
@@ -932,6 +969,66 @@ export class Simulation implements GateWorld {
     for (const r of rocks) this.removeItem(r);
     if (rocks.length) this.log_(`Removed ${rocks.length} obstacles.`, 'nav');
     return rocks.length;
+  }
+
+  startRain() {
+    if (this.disposed || this.rules.harm || this.rainCooldown > 0) return false;
+    this.rain = 25;
+    this.rainCooldown = 60;
+    this.worldVersion++;
+    this.log_('🌧 A 25-second shower begins: fires weaken, spreading stops and construction waits for dry weather.', 'alert');
+    return true;
+  }
+
+  toggleLandProject() {
+    if (this.disposed || this.rules.harm || this.meadowOpen || !this.landLocks.length) return false;
+    this.buildingLand = !this.buildingLand;
+    this.worldVersion++;
+    this.log_(this.buildingLand ? '🛠 Reclaiming the east meadow: up to three volunteers travel to the boundary and build new land.' : 'Construction paused; completed work is saved.');
+    for (const v of this.villagers) {
+      if (!this.buildingLand && v.goal?.key === 'reclaimLand') this.failMovement(v);
+      v.thinkIn = 0;
+    }
+    return true;
+  }
+
+  canBuildLand(v: Villager) {
+    if (!this.buildingLand || this.rain > 0 || this.landInDanger) return false;
+    return this.villagers.filter(o => !o.injured && o.role !== 'guard' && o.hunger < 75 && o.energy > 20 &&
+      !this.threatFor(o) && !this.helpTarget(o)).slice(0, 3).includes(v);
+  }
+
+  actBuildLand(v: Villager): Status {
+    const p = { x: LAND_PROJECT.x + v.ox, z: LAND_PROJECT.z + v.oz * 2 };
+    return this.intend(v, { key: 'reclaimLand', label: 'Reclaiming land at the eastern boundary', ...p, act: 'work', source: 'event' });
+  }
+
+  private updateLandProject(dt: number) {
+    this.landWorkers = 0;
+    if (!this.buildingLand) return;
+    for (const v of this.villagers) {
+      if (v.goal?.key === 'reclaimLand' && !this.canBuildLand(v)) {
+        this.failMovement(v);
+        continue;
+      }
+      if (v.goal?.key === 'reclaimLand' && v.act === 'work' && dist(v.pos, LAND_PROJECT) < 3.5 && this.canBuildLand(v)) this.landWorkers++;
+    }
+    this.landWork = Math.min(LAND_PROJECT.workRequired, this.landWork + this.landWorkers * dt);
+    if (this.landWork < LAND_PROJECT.workRequired) return;
+    for (const lock of this.landLocks) this.nav.removeObstacle(lock);
+    this.landLocks = [];
+    this.nav.flush() && this.onNavRebuilt();
+    this.meadowOpen = true;
+    this.buildingLand = false;
+    this.landWorkers = 0;
+    this.worldVersion++;
+    for (const v of this.villagers) {
+      if (v.goal?.key === 'reclaimLand') this.failMovement(v);
+      this.remember(v, 'The village worked together to reclaim the east meadow', 6);
+      v.thinkIn = 0;
+    }
+    this.log_('🌱 East meadow open! 800 m² of new usable land (+33%), three new refuge spots and room for wells and food.', 'nav');
+    if (this.aliveFires().length) this.requestPlan('land_opened');
   }
 
   setFestival(on: boolean) {
@@ -983,7 +1080,7 @@ export class Simulation implements GateWorld {
     return {
       version: this.worldVersion, day: this.day, clock: this.clock(), trigger,
       fires: this.aliveFires().map(f => ({ id: f.id, x: f.x, z: f.z, place: f.place })),
-      spots: allSpots(),
+      spots: this.safeSpots.map(s => ({ ...s })),
       agents: this.villagers.filter(v => !v.injured).map(v => ({
         id: v.id, name: v.name, role: v.role, x: v.pos.x, z: v.pos.z, activity: v.act,
         fleeingTo: Object.values(v.flee)[0]?.cmd ?? null,
@@ -1043,7 +1140,7 @@ export class Simulation implements GateWorld {
     v.thinkIn = 0;
     v.plannerNote = { cmd: `${c.verb}(${c.arg})`, reason: c.reason, planner, latencyMs };
     if (c.verb === 'EVACUATE') {
-      const s = spotByCmd(c.arg)!;
+      const s = this.spotByCmd(c.arg)!;
       const f = this.nearestFire(v.pos);
       if (!f) return;
       const wasFleeing = !!v.flee[f.id];

@@ -7,6 +7,7 @@ import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useGame, useSim, useUI, type Tool } from '../store';
 import { dist } from '@/sim/math';
 import { FIRE } from '@/sim/simulation';
+import { EXPANDED_WORLD } from '@/sim/layout';
 
 const hover = { x: 0, z: 0, active: false };
 const TOOL_RADIUS: Record<Tool, number> = { select: 0.6, fire: FIRE.blockRadius, rock: 1.25, well: 1.1, food: 0.5, erase: 2.5, water: FIRE.blockRadius + 1.2 };
@@ -25,6 +26,7 @@ export function Ground() {
   const onClick = (e: ThreeEvent<MouseEvent>) => {
     if (e.delta > 4 || !playing) return; // a camera drag, or the menu / end screen is up
     const p = { x: e.point.x, z: e.point.z };
+    if (p.x > sim.bounds.maxX) return;
     switch (tool) {
       case 'select': {
         let best = null, bd = 1.6;
@@ -44,12 +46,13 @@ export function Ground() {
   return (
     <mesh
       rotation-x={-Math.PI / 2}
+      position-x={(EXPANDED_WORLD.minX + EXPANDED_WORLD.maxX) / 2}
       position-y={0.06}
       onClick={onClick}
       onPointerMove={e => Object.assign(hover, { x: e.point.x, z: e.point.z, active: true })}
       onPointerOut={() => (hover.active = false)}
     >
-      <planeGeometry args={[60, 40]} />
+      <planeGeometry args={[EXPANDED_WORLD.maxX - EXPANDED_WORLD.minX, 40]} />
       <meshBasicMaterial visible={false} />
     </mesh>
   );
@@ -82,10 +85,25 @@ export function CameraRig() {
   const sim = useSim();
   const controls = useRef<OrbitControlsImpl>(null);
   const target = useRef(new Vector3());
+  const previousWorld = useRef(sim);
+  const expanded = useRef(sim.meadowOpen);
   useFrame(() => {
+    const c = controls.current;
+    if (previousWorld.current !== sim) {
+      previousWorld.current = sim;
+      expanded.current = false;
+      c?.target.set(0, 0, 1.5);
+      c?.object.position.set(4, 40, 41);
+    }
+    if (sim.meadowOpen && !expanded.current && c) {
+      expanded.current = true;
+      useUI.getState().setFollow(false);
+      c.target.set(10, 0, 0);
+      c.object.position.set(14, 60, 68);
+      c.update();
+    }
     const { follow, selected } = useUI.getState();
     const v = selected == null ? null : sim.villagers[selected];
-    const c = controls.current;
     if (!c || !follow || !v?.visible) return;
     target.current.set(v.pos.x, 0, v.pos.z);
     const delta = target.current.clone().sub(c.target).multiplyScalar(0.08);

@@ -9,6 +9,8 @@ Visual Computing course project, Group JJ: Harjeet Singh Chahal (hc1242, group l
 
 The beta adds real 8/16/32/64-resident sandbox presets, repeatable performance captures, active evacuation-target revalidation, and physical safe-arrival checks. Large crowds show only the selected resident's label; Fire Season remains at eight residents and now defaults to 40 birds.
 
+**November 11 expansion:** Sandbox now has **Reclaim land** and **Rain shower** events. Volunteers physically build an eastern meadow with 800 m² of new usable ground (+33%) and three planner-visible refuges. Rain weakens fires, suppresses spread and pauses construction. Emergencies and needs take priority over building. See [event controls and validation](docs/world-events.md).
+
 [Play the beta](https://ishashah2303.github.io/LivingVillage/) · [Assignment 5 report](output/pdf/Assignment5_LivingVillage_hc1242_ins28.pdf) · [Validation and known limits](docs/beta-release.md).
 
 ### Retained alpha loop
@@ -31,7 +33,7 @@ A 3D vertical slice on the stack from our proposal:
 - **Boids:** 40 birds in 3D with separation, alignment and cohesion, a day circuit and night roost, fire avoidance and a startle response. Neighbor search uses a uniform spatial grid (counting sort into typed arrays, no per-step allocation); the O(n²) all-pairs scan stays available as a switch for the stress test.
 - **LLM planner (Claude):** a FastAPI service over WebSocket. On big events the browser sends a situation report; Claude (`claude-opus-5-5` through the Anthropic API) answers with `EVACUATE(place)`, `INVESTIGATE(Fire#n)` and `HELP_AGENT(name)`, each with a one-sentence reason shown in the inspector. Commands are grounded three times: structured output whose schema enumerates only the live villager, spot and fire names; a server-side check that verb, agent and target fit; and a client-side **safety gate** (still safe, reachable, not expired) because the answer arrives seconds later for a world that may have moved on. Without an API key, on any API error, or with the server offline, a rule-based planner answers instead (on the server, or the same rules in the browser), so the village never waits on the LLM.
 - **Performance overlay and stress test:** 8/16/32/64-villager sandbox presets, flock sizes up to 2000, grid toggle and obstacle bursts. Timed captures export FPS, p95 frame/simulation cost, draw calls and resolution. See [scaling measurements and limitations](docs/scaling-notes.md).
-- **Tests:** 44 frontend tests (behavior trees, planner and gate, real WASM navigation, game scenarios, boids, crowd scaling and performance capture) and 18 server tests (rule planner, LLM prompt/schema/grounding with a fake client, fallback, spend limits, origin checks and size caps).
+- **Tests:** 49 frontend tests (behavior trees, planner and gate, real WASM navigation, game scenarios, boids, crowd scaling and performance capture) and 18 server tests (rule planner, LLM prompt/schema/grounding with a fake client, fallback, spend limits, origin checks and size caps).
 
 ## Repository
 
@@ -115,7 +117,7 @@ The fast loop never waits for the server. Reflexes act immediately; the planner'
 ## Tests
 
 ```bash
-cd web && npm test              # 44 frontend tests; optional exporters/benchmarks skip by default
+cd web && npm test              # 49 frontend tests; optional exporters/benchmarks skip by default
 cd web && npm run benchmark:scale # 24 CPU-only crowd/flock scenarios; writes docs/benchmarks/scaling-headless.json
 cd web && npm run typecheck
 cd server && uv run pytest      # 18 planner, API and spend-limit tests (no API key needed)

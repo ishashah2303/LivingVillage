@@ -16,7 +16,7 @@ export interface Bird {
 }
 
 export const BOIDS = {
-  count: 30,
+  count: 40,
   /** Upper bound for the stress test (instanced meshes are allocated for this many). */
   maxCount: 2000,
   neighborRadius: 5,

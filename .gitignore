@@ -18,6 +18,10 @@ node_modules/
 out/
 *.tsbuildinfo
 next-env.d.ts
+/tmp/vitest/
+/tmp/pdfs/
+/tmp/beta-preview/
+/output/build/
 
 # Course-provided assignment brief (not our work); kept locally only
 /Assignment 1.pdf

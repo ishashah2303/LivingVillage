@@ -10,6 +10,7 @@ import { Crowd, NavMeshQuery, init, type CrowdAgent, type CrowdAgentParams, type
 import { generateTileCache } from 'recast-navigation/generators';
 import { BARN, CRATES, FOUNTAIN, HOUSES, HOUSE_HALF, POND, STALLS, TOWER, TREES, WORLD } from './layout';
 import { dist, type V2 } from './math';
+import { MAX_VILLAGERS } from './agents';
 
 export const AGENT_RADIUS = 0.4;
 /** Obstacles are carved without erosion, so we inflate them by the agent radius ourselves. */
@@ -86,7 +87,7 @@ export class NavWorld {
     });
     if (!res.success) throw new Error(`NavMesh generation failed: ${res.error}`);
     const query = new NavMeshQuery(res.navMesh);
-    const crowd = new Crowd(res.navMesh, { maxAgents: 24, maxAgentRadius: 0.6 });
+    const crowd = new Crowd(res.navMesh, { maxAgents: MAX_VILLAGERS, maxAgentRadius: 0.6 });
     const world = new NavWorld(res.navMesh, res.tileCache, query, crowd);
     // TileCache queues at most 64 obstacle requests, so flush in batches.
     statics.forEach((s, i) => {

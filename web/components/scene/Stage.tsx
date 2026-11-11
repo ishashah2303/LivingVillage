@@ -3,7 +3,7 @@ import { PerformanceMonitor } from '@react-three/drei';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useState } from 'react';
 import type { OrbitControls } from 'three-stdlib';
-import { framePerf, useGame, useSim, useUI } from '../store';
+import { frameBenchmark, framePerf, frameSetup, useGame, useSim, useUI } from '../store';
 import Birds from './Birds';
 import Buildings from './Buildings';
 import DayNight from './DayNight';
@@ -18,10 +18,13 @@ import Villagers from './Villagers';
 /** Advances the simulation once per rendered frame, before anything reads it. */
 function SimDriver() {
   const sim = useSim();
-  useFrame((_, dt) => {
+  useEffect(() => () => frameBenchmark.cancel(), [sim]);
+  useFrame(({ gl }, dt) => {
     const t0 = performance.now();
     sim.advance(dt);
-    framePerf.simMs += (performance.now() - t0 - framePerf.simMs) * 0.1;
+    const simMs = performance.now() - t0;
+    framePerf.simMs += (simMs - framePerf.simMs) * 0.1;
+    if (frameBenchmark.active) frameBenchmark.record(dt * 1000, simMs, framePerf.dpr, gl.info.render.calls, frameSetup(sim), document.hidden);
   }, -1);
   return null;
 }

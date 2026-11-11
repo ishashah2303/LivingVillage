@@ -1,10 +1,11 @@
 'use client';
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game, type Mode } from '@/sim/game';
 import { PlannerClient } from '@/sim/plannerClient';
+import { LocalPlanner } from '@/sim/localPlanner';
 import type { Simulation } from '@/sim/simulation';
-import { GameContext, SimContext, useUI, type Tool } from './store';
+import { GameContext, SimContext, StressContext, useUI, type Tool } from './store';
 import { EndScreen, Menu } from './ui/Screens';
 
 // The menu is plain HTML and paints at once; the 3D workspace (three.js, R3F) and the simulation
@@ -35,17 +36,32 @@ declare global {
 export default function VillageApp() {
   const [game, setGame] = useState<Game | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const generation = useRef(0);
+  const stressCount = useRef<number | undefined>(undefined);
   // Connect to the planner right away: the hosted one may need a minute to wake up.
   const [client] = useState(() => new PlannerClient());
   const phase = useUI(s => s.phase);
 
-  const launch = useCallback(async (mode: Mode, phase: 'menu' | 'playing') => {
+  const launch = useCallback(async (mode: Mode, phase: 'menu' | 'playing', count?: number) => {
+    const ticket = ++generation.current;
+    setBusy(true);
     const ui = useUI.getState();
     client.model = ui.backbone;
     try {
       const { Simulation } = await loadSimulation();
-      const sim = await Simulation.create({ seed: phase === 'menu' ? 5 : Math.floor(Math.random() * 1e6) });
-      sim.planner = client;
+      const stress = mode === 'sandbox' && phase === 'playing' && count !== undefined;
+      const sim = await Simulation.create({
+        seed: phase === 'menu' || stress ? 5 : Math.floor(Math.random() * 1e6),
+        villagerCount: stress ? count : 8,
+      });
+      if (ticket !== generation.current) { sim.dispose(); return; }
+      sim.planner = stress ? new LocalPlanner() : client;
+      if (stress) {
+        sim.setBirdCount(40);
+        sim.log_(`Crowd test: ${count} villagers, seed 5, local rules. Restart a preset to compare the same starting conditions.`);
+        ui.setPerfOpen(true);
+      }
       const g = new Game(sim, mode);
       g.onEnd = () => useUI.getState().setPhase('over');
       setGame(old => {
@@ -59,7 +75,9 @@ export default function VillageApp() {
       ui.setFollow(false);
       ui.setPhase(phase);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (ticket === generation.current) setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (ticket === generation.current) setBusy(false);
     }
   }, [client]);
 
@@ -68,8 +86,12 @@ export default function VillageApp() {
     return () => client.dispose();
   }, [launch, client]);
 
-  const start = useCallback(() => launch(useUI.getState().mode, 'playing'), [launch]);
-  const toMenu = useCallback(() => launch('sandbox', 'menu'), [launch]);
+  const start = useCallback(() => launch(useUI.getState().mode, 'playing', stressCount.current), [launch]);
+  const toMenu = useCallback(() => { stressCount.current = undefined; void launch('sandbox', 'menu'); }, [launch]);
+  const restartCrowd = useCallback((count: number) => {
+    stressCount.current = count;
+    void launch('sandbox', 'playing', count);
+  }, [launch]);
 
   useEffect(() => {
     if (!game || phase !== 'playing') return;
@@ -97,9 +119,11 @@ export default function VillageApp() {
   return (
     <GameContext.Provider value={game}>
       <SimContext.Provider value={game.sim}>
-        <Workspace game={game} phase={phase} onMenu={toMenu} />
-        {phase === 'menu' && <Menu onStart={start} planner={client} ready />}
-        {phase === 'over' && <EndScreen onAgain={start} onMenu={toMenu} />}
+        <StressContext.Provider value={{ restart: restartCrowd, busy }}>
+          <Workspace game={game} phase={phase} onMenu={toMenu} />
+          {phase === 'menu' && <Menu onStart={start} planner={client} ready />}
+          {phase === 'over' && <EndScreen onAgain={start} onMenu={toMenu} />}
+        </StressContext.Provider>
       </SimContext.Provider>
     </GameContext.Provider>
   );

@@ -5,7 +5,13 @@ Visual Computing course project, Group JJ: Harjeet Singh Chahal (hc1242, group l
 
 **Pillars:** NPC AI / behavior trees · pathfinding and navigation (Recast/Detour) · swarm / boids.
 
-## Status (stage 4: alpha, MVP 2.0)
+## Status (stage 5: beta)
+
+The beta adds real 8/16/32/64-resident sandbox presets, repeatable performance captures, active evacuation-target revalidation, and physical safe-arrival checks. Large crowds show only the selected resident's label; Fire Season remains at eight residents and now defaults to 40 birds.
+
+[Play the beta](https://ishashah2303.github.io/LivingVillage/) · [Assignment 5 report](output/pdf/Assignment5_LivingVillage_hc1242_ins28.pdf) · [Validation and known limits](docs/beta-release.md).
+
+### Retained alpha loop
 
 A complete game loop around the stage 3 slice:
 
@@ -22,10 +28,10 @@ A 3D vertical slice on the stack from our proposal:
 - **Navigation:** a real Recast/Detour navmesh (recast-navigation-js, WebAssembly). Houses, trees, the pond, and every user edit are TileCache obstacles, so an edit rebuilds only the tiles it touches (under 1 ms). Villagers are DetourCrowd agents.
 - **Behavior:** a small reactive behavior-tree library; one tree drives all eight villagers. The inspector renders the live tree, the decision and where it came from (routine, need, reflex, planner).
 - **Memory and relationships:** episodic memories with importance; memories change behavior (after a fire, villagers avoid that place for the rest of the day); helping someone raises the relationship.
-- **Boids:** 30 birds in 3D with separation, alignment and cohesion, a day circuit and night roost, fire avoidance and a startle response. Neighbor search uses a uniform spatial grid (counting sort into typed arrays, no per-step allocation); the O(n²) all-pairs scan stays available as a switch for the stress test.
+- **Boids:** 40 birds in 3D with separation, alignment and cohesion, a day circuit and night roost, fire avoidance and a startle response. Neighbor search uses a uniform spatial grid (counting sort into typed arrays, no per-step allocation); the O(n²) all-pairs scan stays available as a switch for the stress test.
 - **LLM planner (Claude):** a FastAPI service over WebSocket. On big events the browser sends a situation report; Claude (`claude-opus-5-5` through the Anthropic API) answers with `EVACUATE(place)`, `INVESTIGATE(Fire#n)` and `HELP_AGENT(name)`, each with a one-sentence reason shown in the inspector. Commands are grounded three times: structured output whose schema enumerates only the live villager, spot and fire names; a server-side check that verb, agent and target fit; and a client-side **safety gate** (still safe, reachable, not expired) because the answer arrives seconds later for a world that may have moved on. Without an API key, on any API error, or with the server offline, a rule-based planner answers instead (on the server, or the same rules in the browser), so the village never waits on the LLM.
-- **Performance overlay and stress test:** FPS and frame time, simulation cost per system (brains, navmesh + crowd, boids), draw calls; buttons to grow the flock to 2000 birds, toggle the boids grid, and drop bursts of navmesh obstacles.
-- **Tests:** 20 simulation tests (behavior-tree semantics, planner and gate, headless scenario runs on the real WASM navmesh, a full-day soak, boids grid equivalence, stress actions) and 16 server tests (rule planner, LLM prompt/schema/grounding with a fake client, fallback on refusal or error, spend limits, origin check, size caps).
+- **Performance overlay and stress test:** 8/16/32/64-villager sandbox presets, flock sizes up to 2000, grid toggle and obstacle bursts. Timed captures export FPS, p95 frame/simulation cost, draw calls and resolution. See [scaling measurements and limitations](docs/scaling-notes.md).
+- **Tests:** 44 frontend tests (behavior trees, planner and gate, real WASM navigation, game scenarios, boids, crowd scaling and performance capture) and 18 server tests (rule planner, LLM prompt/schema/grounding with a fake client, fallback, spend limits, origin checks and size caps).
 
 ## Repository
 
@@ -68,7 +74,7 @@ cd web && npm run demo
 - **Fire Season:** `1` select, `2` water (click a fire; two buckets put one out), `3` food, `B` ring the alarm bell, `Space` pause.
 - **World editor (Sandbox):** select a villager, start a fire, drop an obstacle, leave food, build a well, remove an item; hold a festival or cause a food shortage.
 - **Demo: fire near Maya** starts the scripted scenario and selects Maya. **Demo: stale plan** sets the planner latency to 4 s and starts a second fire while the plan is in flight, so the safety gate rejects commands that are no longer safe.
-- **Stress test:** flock size 30 / 250 / 500 / 1k / 2k, boids spatial grid on/off, drop 20 obstacles at random, clear obstacles. Watch the performance overlay (bottom left).
+- **Stress test:** restart with 8 / 16 / 32 / 64 villagers (seed 5, 40 birds, local rules); adjust birds to 40 / 250 / 500 / 1k / 2k, toggle the grid, add 20 rocks or clear them. Capture 10 seconds of performance after a 3-second warm-up and export results. Population presets discard the current sandbox; Fire Season remains at eight villagers.
 - **Debug overlays:** navmesh, TileCache obstacles, paths and DetourCrowd corridors, perception radius.
 - **Keys:** `1`–`6` tools, `Space` pause, `F` follow the selected villager, `N` navmesh overlay, `Esc` back to select.
 - **Camera:** drag to orbit, right-drag to pan, scroll to zoom.
@@ -109,7 +115,8 @@ The fast loop never waits for the server. Reflexes act immediately; the planner'
 ## Tests
 
 ```bash
-cd web && npm test              # 31 simulation tests (Vitest, real WASM navmesh in Node), incl. whole games played headless
+cd web && npm test              # 44 frontend tests; optional exporters/benchmarks skip by default
+cd web && npm run benchmark:scale # 24 CPU-only crowd/flock scenarios; writes docs/benchmarks/scaling-headless.json
 cd web && npm run typecheck
 cd server && uv run pytest      # 18 planner, API and spend-limit tests (no API key needed)
 ```

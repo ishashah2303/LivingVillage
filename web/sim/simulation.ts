@@ -5,13 +5,13 @@
  *   world event -> perception -> behavior tree + memory -> (async) planner -> navigation -> animation
  */
 import type { Obstacle } from 'recast-navigation';
-import { bond, createVillagers, say, type Activity, type FleeTarget, type Goal, type Villager } from './agents';
+import { bond, createVillagers, say, validateVillagerCount, type Activity, type FleeTarget, type Goal, type Villager } from './agents';
 import type { Status } from './bt';
 import { Flock } from './boids';
 import { HOUSES, PLACES, SAFE_SPOTS, WORLD, placeName, spotByCmd, type PlaceKey, type SafeSpot } from './layout';
 import { Rng, clamp, dist, distXZ, lerpAngle, type V2 } from './math';
 import { AGENT_RADIUS, NavWorld } from './nav';
-import { allSpots, inDanger, validateCommand, type Command, type GateWorld, type PlanResult, type SituationReport } from './planner';
+import { allSpots, GATE, inDanger, validateCommand, type Command, type GateWorld, type PlanResult, type SituationReport } from './planner';
 import { villagerTree } from './villagerTree';
 
 /** Fixed simulation step (s). Rendering interpolates between steps. */
@@ -118,21 +118,23 @@ export class Simulation implements GateWorld {
   private acc = 0;
   private uid = 1;
   private logId = 1;
+  private escapeChecks = new WeakMap<Villager, string>();
 
-  private constructor(readonly nav: NavWorld, seed: number) {
+  private constructor(readonly nav: NavWorld, seed: number, villagerCount: number) {
     this.rng = new Rng(seed);
     this.villagers = createVillagers(this.rng, home => {
       const d = HOUSES[home].door;
       return { x: d.x + this.rng.range(-1, 1), z: d.z + this.rng.range(0.3, 1.2) };
-    });
+    }, villagerCount);
     for (const v of this.villagers) this.spawnAgent(v);
     this.flock = new Flock(this.rng);
     this.log_('The village wakes up. Pick a tool on the left and change the world.');
   }
 
-  static async create(opts: { seed?: number; nav?: NavWorld } = {}) {
+  static async create(opts: { seed?: number; nav?: NavWorld; villagerCount?: number } = {}) {
+    const count = validateVillagerCount(opts.villagerCount ?? 8);
     const nav = opts.nav ?? (await NavWorld.create());
-    return new Simulation(nav, opts.seed ?? 5);
+    return new Simulation(nav, opts.seed ?? 5, count);
   }
 
   /* ---------------- time ---------------- */
@@ -299,7 +301,7 @@ export class Simulation implements GateWorld {
     if (v.goal) this.stats.goalSwitches++;
     v.goal = g;
     v.act = 'walk';
-    if (!this.moveTo(v, g.x, g.z, !!g.run)) v.act = g.act;
+    if (!this.moveTo(v, g.x, g.z, !!g.run)) this.failMovement(v);
     if (g.cmd && g.cmd !== v.lastCmd && g.source !== 'planner') this.log_(`${v.name} (${g.source}): \`${g.cmd}\``, 'plan');
     v.lastCmd = g.cmd ?? null;
   }
@@ -330,11 +332,12 @@ export class Simulation implements GateWorld {
     return { key: `avoid${f.id}`, label: 'Keeping clear of the fire', x: v.pos.x, z: v.pos.z, act: 'idle', source: 'reflex' };
   }
 
-  /** Reflex: best safe spot by distance alone (no coordination, so everyone may pick the same one). */
-  pickSafe(v: Villager, f: V2): SafeSpot {
-    let best = SAFE_SPOTS[0], bs = -Infinity;
+  /** Reachable refuge with a safe destination; this does not yet price smoke along the route. */
+  pickSafe(v: Villager, f: V2): SafeSpot | null {
+    let best: SafeSpot | null = null, bs = -Infinity;
     const fires = this.aliveFires();
     for (const s of SAFE_SPOTS) {
+      if (!this.escapePoint(v, s)) continue;
       const df = Math.min(dist(s, f), ...fires.map(o => dist(s, o)));
       const score = (df > 15 ? 100 : 0) + df - 0.4 * dist(s, v.pos);
       if (score > bs) { bs = score; best = s; }
@@ -342,12 +345,32 @@ export class Simulation implements GateWorld {
     return best;
   }
 
+  private escapePoint(v: Villager, t: V2): V2 | null {
+    const p = this.nav.snap({ x: t.x + v.ox * 1.2, z: t.z + v.oz * 1.2 }, 2);
+    if (!p || this.nearestFire(t, GATE.safeDistance) || this.nearestFire(p, GATE.safeDistance)) return null;
+    return this.nav.path(v.pos, p, 0.8) ? p : null;
+  }
+
   actFlee(v: Villager): Status {
     const f = this.threatFor(v);
     if (!f) return 'failure';
-    let t = v.flee[f.id];
+    let t: FleeTarget | undefined = v.flee[f.id];
+    const check = `${this.worldVersion}:${this.nav.revision}:${t?.cmd}:${t?.x}:${t?.z}`;
+    if (t && this.escapeChecks.get(v) !== check) {
+      if (!this.escapePoint(v, t)) {
+        delete v.flee[f.id];
+        this.failMovement(v);
+        t = undefined;
+      } else this.escapeChecks.set(v, check);
+    }
     if (!t) {
-      t = { ...this.pickSafe(v, f), source: 'reflex' };
+      const refuge = this.pickSafe(v, f);
+      if (!refuge) {
+        this.failMovement(v);
+        say(v, 'No safe route yet.');
+        return 'running';
+      }
+      t = { ...refuge, source: 'reflex' };
       v.flee[f.id] = t;
       f.fled.add(v.id);
       this.remember(v, `Saw a fire near the ${f.place} and ran`, 8);
@@ -401,7 +424,8 @@ export class Simulation implements GateWorld {
     say(v, `${victim.name}, this way!`);
     this.log_(`🤝 ${v.name} reached ${victim.name} and they left together (bond +12).`, 'memory');
     const f = this.items.find(i => i.id === fireId) as Fire | undefined;
-    v.flee[fireId] = victim.flee[fireId] ?? { ...this.pickSafe(v, f ?? victim.pos), source: 'reflex' };
+    const refuge = this.pickSafe(v, f ?? victim.pos);
+    if (refuge) v.flee[fireId] = { ...refuge, source: 'reflex' };
     f?.fled.add(v.id);
     v.help = null;
     v.thinkIn = 0;
@@ -541,6 +565,11 @@ export class Simulation implements GateWorld {
 
   private arrive(v: Villager) {
     const g = v.goal;
+    // Physical proximity and current hazard distance are required, even after a recovery.
+    if (g?.act === 'shelter' && (!v.target || dist(v.pos, v.target) >= 2.2 || this.nearestFire(v.pos, GATE.safeDistance))) {
+      this.failMovement(v);
+      return;
+    }
     v.target = null;
     v.agent?.resetMoveTarget();
     if (!g) return;
@@ -564,6 +593,17 @@ export class Simulation implements GateWorld {
       v.agent = null;
       v.visible = false;
     }
+  }
+
+  private failMovement(v: Villager) {
+    if (v.goal?.fireId != null && v.goal.act === 'shelter') delete v.flee[v.goal.fireId];
+    v.agent?.resetMoveTarget();
+    v.target = null;
+    v.goal = null;
+    v.act = 'idle';
+    v.detourT = 0;
+    v.thinkIn = Math.min(v.thinkIn, THINK_INTERVAL);
+    this.escapeChecks.delete(v);
   }
 
   private syncAgent(v: Villager, dt: number) {
@@ -598,7 +638,7 @@ export class Simulation implements GateWorld {
     this.stats.stuckRecoveries++;
     if (++v.retries > 4) {
       this.log_(`${v.name} could not reach "${v.goal?.label}", stopping here.`, 'nav');
-      return this.arrive(v);
+      return this.failMovement(v);
     }
     // Sidestep to a random nearby point, then resume the real target.
     const side = this.nav.randomNear(v.pos, 2.5);
@@ -789,7 +829,9 @@ export class Simulation implements GateWorld {
       if (v.injured || v.role === 'guard' || !v.visible) continue;
       const f = this.nearestFire(v.pos, 20);
       if (!f || v.flee[f.id]) continue;
-      v.flee[f.id] = { ...this.pickSafe(v, f), source: 'reflex' };
+      const refuge = this.pickSafe(v, f);
+      if (!refuge) continue;
+      v.flee[f.id] = { ...refuge, source: 'reflex' };
       f.fled.add(v.id);
       v.thinkIn = 0;
       warned++;

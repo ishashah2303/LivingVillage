@@ -169,13 +169,13 @@ function Villager({ v }: { v: V }) {
           ))}
         </group>
       )}
-      <Html position={[0, 2.2, 0]} center zIndexRange={[20, 0]} portal={labelLayer}>
+      {(sim.villagers.length <= 16 || selected) && <Html position={[0, 2.2, 0]} center zIndexRange={[20, 0]} portal={labelLayer}>
         <div className={`tag${selected ? ' sel' : ''}`}>
           <div ref={bubble} className="bubble" />
           <div className="name">{v.name}</div>
           <div ref={hp} className="hp" style={{ display: 'none' }}><i /></div>
         </div>
-      </Html>
+      </Html>}
     </group>
   );
 }

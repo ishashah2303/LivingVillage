@@ -9,6 +9,7 @@
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "benchmark:scale": "node scripts/benchmark-scale.mjs",
     "demo": "next build && next start --port 3000"
   },
   "dependencies": {

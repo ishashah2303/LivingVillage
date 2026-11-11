@@ -72,7 +72,7 @@ export function Menu({ onStart, planner, ready }: { onStart: () => void; planner
               <li><b>💧 Water</b> (key 2): click a fire. Two buckets put one out; you carry {SEASON.water.max}, and one refills every {SEASON.water.recharge} s.</li>
               <li><b>🔔 Bell</b> (key B): everyone within 20 m of a fire evacuates at once and the planner is asked for a plan.</li>
               <li><b>🧺 Food</b> (key 3): leave a basket when the food shortage hits.</li>
-              <li>Tomas the guard fights fires on his own but backs off when the smoke hurts him. Fires near houses do double damage.</li>
+              <li>Tomas the guard fights fires on his own but backs off when the smoke hurts him. Fires near houses do triple damage.</li>
               <li><kbd>Space</kbd> pauses. Drag to orbit, right-drag to pan, scroll to zoom.</li>
             </ul>
           </details>
@@ -100,7 +100,7 @@ export function Hud() {
         <span className="hud-k">Rain in</span>
         <b className={game.remaining < 30 ? 'soon' : ''}>{mmss(game.remaining)}</b>
       </div>
-      <div className="hud-item wide" title="Every burning fire damages the village; fires near houses do double damage">
+      <div className="hud-item wide" title="Every burning fire damages the village; fires near houses do triple damage">
         <span className="hud-k">Village</span>
         <div className="track"><div className="fill" style={{ width: `${integrity}%`, background: integrity > 50 ? 'var(--moss)' : integrity > 25 ? '#d49a2a' : 'var(--ember)' }} /></div>
         <b>{integrity}%</b>

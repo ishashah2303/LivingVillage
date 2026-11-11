@@ -116,11 +116,24 @@ export const VILLAGER_DEFS: [string, Role, string, number][] = [
   ['Oskar', 'farmer', '#8e9a3a', 5], ['Lina', 'villager', '#d0674b', 0],
 ];
 
+export const MAX_VILLAGERS = 64;
+export const CROWD_PRESETS = [8, 16, 32, 64] as const;
+
+export function validateVillagerCount(count: number) {
+  if (!Number.isInteger(count) || count < 8 || count > MAX_VILLAGERS)
+    throw new RangeError(`Villager count must be an integer from 8 to ${MAX_VILLAGERS}`);
+  return count;
+}
+
 /** Pairs with a history: [a, b, bond]. */
 const FRIENDSHIPS: [number, number, number][] = [[0, 6, 85], [1, 5, 80], [3, 7, 78], [2, 4, 72], [0, 7, 74]];
 
-export function createVillagers(rng: Rng, spawn: (home: number) => V2): Villager[] {
-  const vs: Villager[] = VILLAGER_DEFS.map(([name, role, color, home], id) => {
+export function createVillagers(rng: Rng, spawn: (home: number) => V2, count = 8): Villager[] {
+  validateVillagerCount(count);
+  const vs: Villager[] = Array.from({ length: count }, (_, id) => {
+    const [baseName, role, color, home] = VILLAGER_DEFS[id % VILLAGER_DEFS.length];
+    const cohort = Math.floor(id / VILLAGER_DEFS.length);
+    const name = cohort === 0 ? baseName : `${baseName} ${cohort + 1}`;
     const p = spawn(home);
     return {
       id, name, role, color, home,

@@ -243,6 +243,9 @@ dl.stats dd { font-variant-numeric: tabular-nums; text-align: right; }
 .charges i { width: 9px; height: 9px; border-radius: 50%; background: linear-gradient(to top, var(--sky) var(--p), var(--bar) var(--p)); }
 .tip { font-size: 12.5px; color: var(--muted); margin: 10px 2px 0; }
 .chip.hurt { text-decoration: line-through; opacity: 0.6; }
+.chips { max-height: 160px; overflow-y: auto; }
+.capture-results { max-height: 190px; overflow-y: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.capture-results p { border-top: 1px solid var(--line); padding-top: 6px; }
 .tag .hp { width: 44px; height: 4px; margin: 2px auto 0; background: rgba(0, 0, 0, 0.35); border-radius: 2px; overflow: hidden; }
 .tag .hp i { display: block; height: 100%; background: #6fcf7f; }
 .tag .hp.low i { background: #ff5a3c; }
@@ -273,6 +276,8 @@ dl.stats dd { font-variant-numeric: tabular-nums; text-align: right; }
   header.top p { display: none; }
   aside.tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   aside.tools h3, details.fold { display: none; }
+  details.crowd-stress { display: block; flex-basis: 100%; }
+  details.crowd-stress .tip { display: block; }
   .tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); flex-basis: 100%; }
   header.top { gap: 8px; }
   header.top h1 { font-size: 17px; }

@@ -1,13 +1,14 @@
 'use client';
-import { Fragment } from 'react';
-import { ROLE_LABEL } from '@/sim/agents';
+import { Fragment, useContext } from 'react';
+import { CROWD_PRESETS, ROLE_LABEL } from '@/sim/agents';
+import { LocalPlanner } from '@/sim/localPlanner';
 import { BOIDS } from '@/sim/boids';
 import { activePath, flatten, type Status } from '@/sim/bt';
 import { PLACES } from '@/sim/layout';
 import { SEASON } from '@/sim/game';
 import { backboneLabel } from '@/sim/plannerClient';
 import { ACTIVITY_LABEL, DT } from '@/sim/simulation';
-import { framePerf, useGame, useSim, useTick, useUI, type Tool } from '../store';
+import { frameBenchmark, framePerf, frameSetup, StressContext, useGame, useSim, useTick, useUI, type Tool } from '../store';
 
 /** Renders `code` spans for text between backticks (log lines and reasons). */
 export function Rich({ text }: { text: string }) {
@@ -134,7 +135,7 @@ function ChallengeTools() {
           {game.alarmIn > 0 ? `Bell in ${Math.ceil(game.alarmIn)} s` : game.sim.aliveFires().length ? 'Ring the bell' : 'Bell (no fire)'}
         </button>
       </div>
-      <p className="tip">Fires near houses do double damage. Tomas fights fires on his own; water helps him finish them before they spread.</p>
+      <p className="tip">Fires near houses do triple damage. Tomas fights fires on his own; water helps him finish them before they spread.</p>
       <DebugOverlays />
     </aside>
   );
@@ -193,7 +194,7 @@ function EditorTools() {
         <span className="ic">▶</span>Stale plan
       </button>
 
-      <details className="fold" onToggle={e => setPerfOpen((e.currentTarget as HTMLDetailsElement).open)}>
+      <details className="fold crowd-stress" onToggle={e => setPerfOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary>Stress test</summary>
         <StressControls />
       </details>
@@ -202,15 +203,27 @@ function EditorTools() {
   );
 }
 
-const BIRD_COUNTS = [30, 250, 500, 1000, BOIDS.maxCount];
+const BIRD_COUNTS = [40, 250, 500, 1000, BOIDS.maxCount];
 
 /** Push the systems past their design load and watch the performance overlay. */
 function StressControls() {
   const sim = useSim();
+  const { restart, busy } = useContext(StressContext);
   const refresh = useTick(4);
   const n = sim.flock.birds.length;
   return (
     <>
+      <p className="tip">Villagers · restart sandbox</p>
+      <div className="seg stress" role="group" aria-label="Number of villagers">
+        {CROWD_PRESETS.map(c => (
+          <button key={c} disabled={busy} aria-pressed={sim.villagers.length === c}
+            onClick={() => { frameBenchmark.cancel(); restart(c); }} title={`Restart with ${c} villagers, 40 birds, seed 5 and local rules`}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <p className="tip">Presets reset edits and events. Seed 5 · 40 birds · local rules. Larger crowds share the existing village and shelters.</p>
+      <p className="tip">Birds</p>
       <div className="seg stress" role="group" aria-label="Number of birds">
         {BIRD_COUNTS.map(c => (
           <button key={c} aria-pressed={n === c} onClick={() => (sim.setBirdCount(c), refresh())} title={`${c} birds`}>
@@ -230,6 +243,27 @@ function StressControls() {
           <span className="ic">🧹</span>Clear
         </button>
       </div>
+      <button className="tool" disabled={busy || sim.speed === 0} onClick={() => {
+        if (frameBenchmark.active) frameBenchmark.cancel('Capture cancelled.');
+        else frameBenchmark.start(frameSetup(sim));
+        refresh();
+      }}>{frameBenchmark.active ? 'Cancel capture' : 'Capture performance (10 s)'}</button>
+      <p className="tip" role="status">{frameBenchmark.message}</p>
+      {frameBenchmark.results.length > 0 && <>
+        <div className="capture-results">
+          {frameBenchmark.results.map(r => <p key={r.capturedAt}>
+            <b>{r.setup.villagers} villagers · {r.setup.birds} birds</b><br />
+            {r.fps.toFixed(1)} FPS · p95 {r.p95FrameMs.toFixed(1)} ms<br />
+            sim p95 {r.p95SimMs.toFixed(2)} ms · {r.setup.speed}× speed<br />
+            DPR {r.dprMin}–{r.dprMax} · {r.meanDrawCalls.toFixed(0)} calls
+          </p>)}
+        </div>
+        <button className="tool" onClick={() => {
+          const url = URL.createObjectURL(new Blob([JSON.stringify({ userAgent: navigator.userAgent, results: frameBenchmark.results }, null, 2)], { type: 'application/json' }));
+          const a = document.createElement('a'); a.href = url; a.download = 'living-village-performance.json'; a.click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }}>Export captures</button>
+      </>}
     </>
   );
 }
@@ -238,6 +272,7 @@ const fpsColor = (fps: number) => (fps >= 55 ? 'var(--moss)' : fps >= 30 ? '#d49
 
 export function PerfOverlay() {
   const sim = useSim();
+  const game = useGame();
   const { perfOpen, setPerfOpen } = useUI();
   useTick(4);
   const { fps, frameMs, worstMs, simMs, calls, triangles, dpr } = framePerf;
@@ -268,6 +303,18 @@ export function PerfOverlay() {
             navmesh <b>{sim.nav.obstacleCount}</b> obstacles · rebuild <b>{sim.stats.lastRebuildMs.toFixed(1)}</b> ms · goal switches/min <b>{switches.toFixed(1)}</b> · stuck fixes <b>{sim.stats.stuckRecoveries}</b>
             {sim.stats.lastTimeToSafety != null && <> · time to safety <b>{sim.stats.lastTimeToSafety.toFixed(1)} s</b></>}
           </div>
+          {game.mode === 'challenge' && <>
+            <button className="tool" disabled={sim.speed === 0} onClick={() => frameBenchmark.active ? frameBenchmark.cancel('Capture cancelled.') : frameBenchmark.start(frameSetup(sim))}>
+              {frameBenchmark.active ? 'Cancel capture' : 'Capture gameplay (10 s)'}
+            </button>
+            <p role="status">{frameBenchmark.message}</p>
+            {frameBenchmark.results[0] && <p>Last capture: {frameBenchmark.results[0].fps.toFixed(1)} FPS · p95 {frameBenchmark.results[0].p95FrameMs.toFixed(1)} ms</p>}
+            {frameBenchmark.results.length > 0 && <button className="tool" onClick={() => {
+              const url = URL.createObjectURL(new Blob([JSON.stringify({ userAgent: navigator.userAgent, results: frameBenchmark.results }, null, 2)], { type: 'application/json' }));
+              const a = document.createElement('a'); a.href = url; a.download = 'living-village-gameplay.json'; a.click();
+              setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }}>Export gameplay captures</button>}
+          </>}
         </div>
       )}
     </div>
@@ -279,10 +326,11 @@ export function PlannerPanel() {
   const { plannerOpen, setPlannerOpen, backbone } = useUI();
   const refresh = useTick(4);
   const status = sim.planner?.status() ?? 'offline';
+  const local = sim.planner instanceof LocalPlanner || sim.villagers.length > 32;
   const info = (sim.planner as { serverInfo?: { planner: string; version: string; llm: boolean } | null } | null)?.serverInfo;
-  const llm = status === 'online' && !!info?.llm && backbone !== 'rules';
+  const llm = !local && status === 'online' && !!info?.llm && backbone !== 'rules';
   const color = status === 'online' ? '#3f9a5a' : status === 'connecting' ? '#d49a2a' : '#c9502a';
-  const label = llm ? backboneLabel(backbone) : status === 'online' ? 'Server rules' : status === 'connecting' ? 'Connecting…' : 'Local planner';
+  const label = local ? 'Local rules · crowd test' : llm ? backboneLabel(backbone) : status === 'online' ? 'Server rules' : status === 'connecting' ? 'Connecting…' : 'Local planner';
   const last = sim.lastPlan;
   return (
     <div className={`overlay planner${plannerOpen ? ' open' : ''}`}>
@@ -301,7 +349,7 @@ export function PlannerPanel() {
       {plannerOpen && (
         <div className="details">
           <div className="muted">
-            {status === 'online' && info ? `${info.planner} · v${info.version} · WebSocket` : 'Server offline: the same rules run in the browser.'}
+            {local ? 'Crowd test: rules run in the browser; no LLM calls.' : status === 'online' && info ? `${info.planner} · v${info.version} · WebSocket` : 'Server offline: the same rules run in the browser.'}
           </div>
           {llm ? (
             <p className="muted">
@@ -352,6 +400,7 @@ export function Inspector() {
   return (
     <aside className="insp card" aria-label="Villager inspector">
       <h3>Villagers</h3>
+      {sim.villagers.length > 16 && <p className="tip">Select a resident here or on the map to show their name and speech.</p>}
       <div className="chips">
         {sim.villagers.map(o => (
           <button key={o.id} className={`chip${o.injured ? ' hurt' : ''}`} aria-pressed={o.id === selected} onClick={() => select(o.id === selected ? null : o.id)}>

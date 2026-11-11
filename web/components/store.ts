@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useReducer } from 'react';
 import { create } from 'zustand';
 import type { Game, Mode } from '@/sim/game';
 import type { Simulation } from '@/sim/simulation';
+import { FrameBenchmark, type FrameSetup } from '@/sim/frameBenchmark';
 
 export type Tool = 'select' | 'fire' | 'rock' | 'food' | 'well' | 'erase' | 'water';
 /** Start state (menu over a live village), active state, end state. */
@@ -59,7 +60,7 @@ export const useUI = create<UIState>(set => ({
   tool: 'select',
   selected: 0,
   follow: false,
-  overlays: { navmesh: false, obstacles: false, paths: true, perception: false },
+  overlays: { navmesh: false, obstacles: false, paths: false, perception: false },
   plannerOpen: false,
   perfOpen: false,
   setPhase: phase => set({ phase }),
@@ -75,9 +76,22 @@ export const useUI = create<UIState>(set => ({
 
 export const SimContext = createContext<Simulation | null>(null);
 export const GameContext = createContext<Game | null>(null);
+export const StressContext = createContext<{ restart: (count: number) => void; busy: boolean }>({ restart: () => {}, busy: false });
 
 /** Render-loop measurements, written by <PerfProbe> inside the canvas and read by the overlay. */
 export const framePerf = { fps: 0, frameMs: 0, worstMs: 0, simMs: 0, calls: 0, triangles: 0, dpr: 1 };
+export const frameBenchmark = new FrameBenchmark();
+export function frameSetup(sim: Simulation): FrameSetup {
+  const o = useUI.getState().overlays;
+  const canvas = document.querySelector('canvas');
+  return {
+    villagers: sim.villagers.length, birds: sim.flock.birds.length, grid: sim.flock.grid,
+    speed: sim.speed, obstacles: sim.nav.obstacleCount, paths: o.paths, navmesh: o.navmesh,
+    perception: o.perception, obstacleOverlay: o.obstacles,
+    width: canvas?.clientWidth ?? 0, height: canvas?.clientHeight ?? 0,
+    mode: sim.rules.harm ? 'challenge' : 'sandbox',
+  };
+}
 
 /**
  * Stable container for drei <Html> labels. Without it, Html re-creates its React root once R3F

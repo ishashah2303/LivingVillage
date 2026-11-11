@@ -102,7 +102,8 @@ export class PlannerClient implements PlannerTransport {
 
   plan(report: SituationReport, latencyMs: number): Promise<PlanResult> {
     const ws = this.ws;
-    if (this.state !== 'online' || !ws) return this.local.plan(report, latencyMs);
+    // The hosted schema caps reports at 32 agents. Large sandbox crowds stay local.
+    if (report.agents.length > 32 || this.state !== 'online' || !ws) return this.local.plan(report, latencyMs);
     const requestId = `r${++this.seq}`;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {

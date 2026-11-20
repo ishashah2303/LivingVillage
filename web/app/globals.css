@@ -248,6 +248,15 @@ dl.stats dd { font-variant-numeric: tabular-nums; text-align: right; }
 .capture-results p { border-top: 1px solid var(--line); padding-top: 6px; }
 .land-progress { display: grid; gap: 5px; margin: 10px 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 12px; color: var(--muted); }
 .land-progress b { color: var(--moss); }
+.play-guide { padding: 10px; margin: 12px 0; border-radius: 10px; background: var(--moss-soft); font-size: 12px; flex-basis: 100%; }
+.play-guide p { margin: 6px 0; }
+.play-guide b { color: var(--moss); }
+.play-guide small { display: block; color: var(--muted); }
+.guide-action { border-top: 1px solid var(--line); padding-top: 6px; }
+.retry-tip { font-size: 13px; color: var(--muted); }
+.victory-reveal { background: transparent; align-items: end; padding-bottom: 5vh; }
+.victory-reveal .panel { background: color-mix(in srgb, var(--panel) 94%, transparent); }
+.panel.end > .bar-btn { margin-bottom: 10px; }
 .land-progress progress { width: 100%; accent-color: var(--moss); height: 8px; }
 .pair.world-events { grid-template-columns: minmax(0, 1fr); margin-top: 5px; }
 .pair.world-events .tool { white-space: normal; }

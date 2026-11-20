@@ -5,7 +5,7 @@ import { useMemo, useRef } from 'react';
 import { BufferAttribute, BufferGeometry, type Group, type LineSegments } from 'three';
 import { LAND_PROJECT, MEADOW_SPOTS } from '@/sim/layout';
 import { Rng } from '@/sim/math';
-import { useSim, useTick, labelLayer } from '../store';
+import { useGame, useSim, useTick, labelLayer } from '../store';
 import { MAT, flat } from './materials';
 
 /** The new district stays outside StaticMerge because its visibility and height change. */
@@ -48,6 +48,7 @@ export function LandExpansion() {
 /** A single draw call for rain; positions depend on simulation time, so pause freezes it. */
 export function RainShower() {
   const sim = useSim();
+  const game = useGame();
   const ref = useRef<LineSegments>(null);
   const cloud = useRef<Group>(null);
   const { geometry, drops } = useMemo(() => {
@@ -59,13 +60,14 @@ export function RainShower() {
   }, []);
   useFrame(() => {
     if (!ref.current || !cloud.current) return;
-    ref.current.visible = cloud.current.visible = sim.rain > 0;
-    if (sim.rain <= 0) return;
+    const victory = game.outcome?.result === 'won';
+    ref.current.visible = cloud.current.visible = sim.rain > 0 || victory;
+    if (sim.rain <= 0 && !victory) return;
     const attr = geometry.getAttribute('position');
     drops.forEach((d, i) => {
       const x = sim.bounds.minX + d.x * (sim.bounds.maxX - sim.bounds.minX);
       const z = -20 + d.z * 40;
-      const y = ((d.y * 14 - sim.simTime * 11) % 14 + 14) % 14;
+      const y = ((d.y * 14 - (sim.simTime + game.victoryTime) * 11) % 14 + 14) % 14;
       attr.setXYZ(i * 2, x, y, z);
       attr.setXYZ(i * 2 + 1, x + 0.12, y + 0.75, z);
     });

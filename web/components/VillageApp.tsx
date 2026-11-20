@@ -7,6 +7,7 @@ import { LocalPlanner } from '@/sim/localPlanner';
 import type { Simulation } from '@/sim/simulation';
 import { GameContext, SimContext, StressContext, useUI, type Tool } from './store';
 import { EndScreen, Menu } from './ui/Screens';
+import Soundscape from './Soundscape';
 
 // The menu is plain HTML and paints at once; the 3D workspace (three.js, R3F) and the simulation
 // (Recast/Detour WebAssembly) are fetched in parallel behind it instead of blocking the first paint.
@@ -94,7 +95,7 @@ export default function VillageApp() {
   }, [launch]);
 
   useEffect(() => {
-    if (!game || phase !== 'playing') return;
+    if (!game || phase !== 'playing' || game.outcome) return;
     const keys = game.mode === 'challenge' ? CHALLENGE_KEYS : SANDBOX_KEYS;
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
@@ -119,6 +120,7 @@ export default function VillageApp() {
   return (
     <GameContext.Provider value={game}>
       <SimContext.Provider value={game.sim}>
+        <Soundscape game={game} />
         <StressContext.Provider value={{ restart: restartCrowd, busy }}>
           <Workspace game={game} phase={phase} onMenu={toMenu} />
           {phase === 'menu' && <Menu onStart={start} planner={client} ready />}

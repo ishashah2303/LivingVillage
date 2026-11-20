@@ -19,10 +19,12 @@ import { LandExpansion, RainShower } from './WorldEvents';
 /** Advances the simulation once per rendered frame, before anything reads it. */
 function SimDriver() {
   const sim = useSim();
+  const game = useGame();
   useEffect(() => () => frameBenchmark.cancel(), [sim]);
   useFrame(({ gl }, dt) => {
     const t0 = performance.now();
     sim.advance(dt);
+    if (!document.hidden) game.advancePresentation(dt);
     const simMs = performance.now() - t0;
     framePerf.simMs += (simMs - framePerf.simMs) * 0.1;
     if (frameBenchmark.active) frameBenchmark.record(dt * 1000, simMs, framePerf.dpr, gl.info.render.calls, frameSetup(sim), document.hidden);

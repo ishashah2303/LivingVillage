@@ -8,6 +8,8 @@ import { LAND_PROJECT, PLACES } from '@/sim/layout';
 import { SEASON } from '@/sim/game';
 import { backboneLabel } from '@/sim/plannerClient';
 import { ACTIVITY_LABEL, DT } from '@/sim/simulation';
+import { SoundButton } from '../Soundscape';
+import { PlayGuide } from './Screens';
 import { frameBenchmark, framePerf, frameSetup, StressContext, useGame, useSim, useTick, useUI, type Tool } from '../store';
 
 /** Renders `code` spans for text between backticks (log lines and reasons). */
@@ -39,7 +41,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
     <header className="top card">
       <h1>Living Village</h1>
       <span className={`mode-badge ${game.mode}`}>{game.mode === 'challenge' ? '🔥 Fire Season' : '🧪 Sandbox'}</span>
-      <p>behavior trees · Recast/Detour · boids · LLM planner</p>
+      <p>Protect the village. Shape its future.</p>
       <span className="clock">Day {sim.day}, {sim.clock()}</span>
       <div className="seg" role="group" aria-label="Simulation speed">
         {SPEEDS.map(([s, label]) => (
@@ -52,6 +54,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
         <button className="bar-btn" onClick={() => game.end()} title="See a summary of this session">End session</button>
       )}
       <button className="bar-btn" onClick={onMenu} title="Back to the start menu (this game is discarded)">Menu</button>
+      <SoundButton />
       <details className="keys">
         <summary aria-label="Keyboard and mouse controls" title="Controls">?</summary>
         <dl>
@@ -136,6 +139,7 @@ function ChallengeTools() {
         </button>
       </div>
       <p className="tip">Fires near houses do triple damage. Tomas fights fires on his own; water helps him finish them before they spread.</p>
+      <PlayGuide />
       <DebugOverlays />
     </aside>
   );
@@ -153,6 +157,7 @@ function EditorTools() {
   return (
     <aside className="tools card" aria-label="World editor">
       <h3 title="Pick a tool, then click the map. Every edit rebuilds only the navmesh tiles it touches, and villagers reroute.">World editor</h3>
+      <PlayGuide />
       <div className="tile-grid">
         {TOOLS.map(([t, ic, label, long], i) => (
           <button key={t} className={`tile${t === 'fire' ? ' fire' : ''}`} aria-pressed={tool === t} onClick={() => setTool(t)} title={`${long} (${i + 1})`}>

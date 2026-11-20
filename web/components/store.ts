@@ -28,6 +28,8 @@ interface UIState {
   /** Expanded state of the scene overlays (collapsed to one-line pills by default). */
   plannerOpen: boolean;
   perfOpen: boolean;
+  muted: boolean;
+  setMuted: (muted: boolean) => void;
   setPhase: (p: Phase) => void;
   setMode: (m: Mode) => void;
   setBackbone: (b: string) => void;
@@ -63,6 +65,8 @@ export const useUI = create<UIState>(set => ({
   overlays: { navmesh: false, obstacles: false, paths: false, perception: false },
   plannerOpen: false,
   perfOpen: false,
+  muted: saved('muted', 'false') === 'true',
+  setMuted: muted => (save('muted', String(muted)), set({ muted })),
   setPhase: phase => set({ phase }),
   setMode: mode => (save('mode', mode), set({ mode })),
   setBackbone: backbone => (save('backbone', backbone), set({ backbone })),

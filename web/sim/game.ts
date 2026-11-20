@@ -55,6 +55,9 @@ export class Game {
   food = SEASON.food.max;
   alarmIn = 0;
   outcome: Outcome | null = null;
+  /** Real seconds of the victory presentation; gameplay has already stopped. */
+  victoryTime = 0;
+  private rainSettled = false;
   onEnd: ((o: Outcome) => void) | null = null;
   private wave = 0;
   private nextWaveAt = OPENING[0][0];
@@ -76,6 +79,18 @@ export class Game {
     return this.sim.villagers.filter(v => v.injured).length;
   }
 
+  advancePresentation(dt: number) {
+    if (this.outcome?.result !== 'won' || this.sim.disposed) return;
+    this.victoryTime += Math.max(0, Math.min(dt, 0.1));
+    if (!this.rainSettled && this.victoryTime >= 0.8) {
+      this.rainSettled = true;
+      this.sim.finishSeasonRain();
+    }
+    for (const f of this.sim.items) {
+      if (f.kind === 'fire' && !f.alive) f.fade = Math.max(0, f.fade - dt * 0.8);
+    }
+  }
+
   update(dt: number) {
     if (this.outcome || this.mode !== 'challenge') return;
     this.elapsed += dt;
@@ -86,7 +101,7 @@ export class Game {
     for (const f of this.sim.aliveFires()) this.integrity -= (SEASON.drain + (nearHouse(f) ? SEASON.houseDrain : 0)) * dt;
     this.integrity = Math.max(0, this.integrity);
 
-    if (this.elapsed >= this.nextWaveAt) this.runDirector();
+    if (this.elapsed < SEASON.duration && this.elapsed >= this.nextWaveAt) this.runDirector();
 
     if (this.integrity <= 0) this.finish('lost', 'The village burned down', 'Too many fires burned for too long.');
     else if (this.injured >= SEASON.maxInjured)
@@ -160,6 +175,7 @@ export class Game {
     const score = result === 'ended' ? 0 : Math.round(this.integrity * 10 + safe * 100 + this.sim.stats.firesOut * 50);
     const stars = result !== 'won' ? 0 : this.integrity >= 60 && this.injured === 0 ? 3 : this.integrity >= 30 || this.injured <= 1 ? 2 : 1;
     this.outcome = { result, title, reason, stars, score };
+    this.sim.ended = true;
     this.sim.log_(`${result === 'won' ? '🌧' : result === 'lost' ? '💀' : '⏹'} ${title}. ${reason}`, result === 'lost' ? 'alert' : 'info');
     this.sim.speed = 0;
     this.onEnd?.(this.outcome);

@@ -49,7 +49,7 @@ export interface LogEntry { id: number; t: string; text: string; kind: LogKind }
 export interface PlannerTransport {
   readonly name: string;
   status(): 'online' | 'offline' | 'connecting';
-  plan(report: SituationReport, latencyMs: number): Promise<PlanResult>;
+  plan(report: SituationReport, latencyMs: number, refreshReport?: () => SituationReport | null): Promise<PlanResult>;
 }
 
 export interface SimStats {
@@ -124,6 +124,9 @@ export class Simulation implements GateWorld {
   onStep: ((dt: number) => void) | null = null;
   /** Set by dispose(); late planner replies and timers must not touch a freed navmesh. */
   disposed = false;
+  /** Outcome is final: stop fixed steps and ignore late planner replies. */
+  ended = false;
+  readonly soundCues = { water: 0, bell: 0 };
   /** 0..1 progress between the last two fixed steps, for render interpolation. */
   alpha = 0;
   private acc = 0;
@@ -162,10 +165,10 @@ export class Simulation implements GateWorld {
 
   /** Advance by real elapsed seconds; runs fixed steps and updates the interpolation alpha. */
   advance(realDt: number) {
-    if (this.speed <= 0 || this.disposed) return;
+    if (this.speed <= 0 || this.disposed || this.ended) return;
     this.acc += Math.min(realDt, 0.1) * this.speed;
     let steps = 0;
-    while (this.acc >= DT && steps < 12) {
+    while (this.acc >= DT && steps < 12 && !this.ended && this.speed > 0) {
       this.step(DT);
       this.acc -= DT;
       steps++;
@@ -180,6 +183,7 @@ export class Simulation implements GateWorld {
   }
 
   step(dt: number) {
+    if (this.disposed || this.ended) return;
     this.simTime += dt;
     this.hour += (dt * 24) / DAY_SECONDS;
     if (this.hour >= 24) { this.hour -= 24; this.day++; }
@@ -787,9 +791,9 @@ export class Simulation implements GateWorld {
     return null;
   }
 
-  private endFire(f: Fire, putOut: boolean) {
+  private endFire(f: Fire, putOut: boolean, credit = true) {
     f.alive = false;
-    if (putOut) this.stats.firesOut++;
+    if (putOut && credit) this.stats.firesOut++;
     if (f.obstacle) this.nav.removeObstacle(f.obstacle);
     f.obstacle = null;
     f.removeAt = this.simTime + 6;
@@ -814,6 +818,13 @@ export class Simulation implements GateWorld {
         say(v, 'All clear!');
       }
     for (const v of this.villagers) if (v.investigate === f.id) v.investigate = null;
+  }
+
+  /** Post-victory weather clears remaining hazards without awarding firefighting points. */
+  finishSeasonRain() {
+    if (!this.ended || this.disposed) return;
+    for (const f of this.aliveFires()) this.endFire(f, true, false);
+    this.nav.flush();
   }
 
   private updateFires(dt: number) {
@@ -852,6 +863,7 @@ export class Simulation implements GateWorld {
   douseAt(p: V2, power: number) {
     const f = this.nearestFire(p, FIRE.blockRadius + 1.2);
     if (!f) return null;
+    this.soundCues.water++;
     f.hp -= power;
     this.log_(`💧 Water thrown on the fire near the ${f.place}${f.hp <= 0 ? '' : ` (${Math.ceil(f.hp)}/${FIRE.hp} left)`}.`, 'info');
     if (f.hp <= 0) this.endFire(f, true);
@@ -860,6 +872,7 @@ export class Simulation implements GateWorld {
 
   /** The alarm bell: everyone within 20 m of a fire evacuates now, and the planner is asked to coordinate. */
   soundAlarm() {
+    this.soundCues.bell++;
     let warned = 0;
     for (const v of this.villagers) {
       if (v.injured || v.role === 'guard' || !v.visible) continue;
@@ -1091,20 +1104,26 @@ export class Simulation implements GateWorld {
 
   requestPlan(trigger: string) {
     const planner = this.planner;
-    if (!planner || this.disposed) return;
-    const report = this.situationReport(trigger);
+    if (!planner || this.disposed || this.ended) return;
+    let report = this.situationReport(trigger);
     const sentAt = now();
+    let snapshotAt = sentAt;
     this.pendingPlans++;
     this.log_(`🧠 Asked the ${planner.name} planner to coordinate (world v${report.version}); reflexes act meanwhile.`, 'plan');
     planner
-      .plan(report, this.plannerLatencyMs)
-      .then(res => this.applyPlan(res, report.version, sentAt))
-      .catch(err => this.disposed || this.log_(`Planner unavailable (${err instanceof Error ? err.message : err}); villagers rely on reflexes.`, 'alert'))
+      .plan(report, this.plannerLatencyMs, () => {
+        if (this.disposed || this.ended) return null;
+        report = this.situationReport(trigger);
+        snapshotAt = now();
+        return report;
+      })
+      .then(res => this.applyPlan(res, report.version, sentAt, now() - snapshotAt))
+      .catch(err => this.disposed || this.ended || this.log_(`Planner unavailable (${err instanceof Error ? err.message : err}); villagers rely on reflexes.`, 'alert'))
       .finally(() => this.pendingPlans--);
   }
 
-  applyPlan(res: PlanResult, version: number, sentAt: number) {
-    if (this.disposed) return;
+  applyPlan(res: PlanResult, version: number, sentAt: number, snapshotAgeMs = now() - sentAt) {
+    if (this.disposed || this.ended) return;
     const latencyMs = now() - sentAt;
     const costUsd = res.usage?.costUsd ?? 0;
     this.stats.plans++;
@@ -1121,7 +1140,7 @@ export class Simulation implements GateWorld {
     const last = { planner: res.planner, summary: res.summary ?? '', latencyS: latencyMs / 1000, accepted: 0, rejected: 0, costUsd };
     this.lastPlan = last;
     for (const c of res.commands) {
-      const verdict = validateCommand(this, c, latencyMs / 1000);
+      const verdict = validateCommand(this, c, snapshotAgeMs / 1000);
       if (!verdict.ok) {
         this.stats.rejected++;
         last.rejected++;

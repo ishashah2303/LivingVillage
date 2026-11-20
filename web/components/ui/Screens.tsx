@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SEASON } from '@/sim/game';
 import { BACKBONES, backboneLabel, type PlannerClient } from '@/sim/plannerClient';
 import { useGame, useSim, useTick, useUI } from '../store';
+import { SoundButton } from '../Soundscape';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -13,7 +14,7 @@ const MODES = [
   },
   {
     id: 'sandbox', icon: '🧪', title: 'Sandbox', kind: 'Free play',
-    text: 'The world editor: start fires, drop obstacles and food, build wells, call festivals and shortages, and stress-test the systems. No rules; end the session whenever you like.',
+    text: 'Shape a living village: reclaim a meadow, bring the rain, build wells, and see how residents respond to fires, festivals and shortages. End the session whenever you like.',
   },
 ] as const;
 
@@ -34,7 +35,8 @@ export function Menu({ onStart, planner, ready }: { onStart: () => void; planner
     <div className="screen" role="dialog" aria-modal="true" aria-labelledby="menu-title">
       <div className="panel menu">
         <h1 id="menu-title">Living Village</h1>
-        <p className="lede">A village that runs itself: every villager has a behavior tree, finds its way on a Recast/Detour navmesh and remembers what happened. An LLM planner coordinates them in emergencies.</p>
+        <p className="lede">Eight villagers with lives of their own. Help them survive Fire Season, or build and experiment together in the Sandbox.</p>
+        <SoundButton />
 
         <div className="modes" role="radiogroup" aria-label="Game mode">
           {MODES.map(m => (
@@ -66,7 +68,7 @@ export function Menu({ onStart, planner, ready }: { onStart: () => void; planner
         </fieldset>
 
         {mode === 'challenge' && (
-          <details className="how">
+          <details className="how" open>
             <summary>How to play</summary>
             <ul>
               <li><b>💧 Water</b> (key 2): click a fire. Two buckets put one out; you carry {SEASON.water.max}, and one refills every {SEASON.water.recharge} s.</li>
@@ -84,6 +86,33 @@ export function Menu({ onStart, planner, ready }: { onStart: () => void; planner
       </div>
     </div>
   );
+}
+
+/** Always-visible, contextual instructions; playtesters need no spoken control tutorial. */
+export function PlayGuide() {
+  const game = useGame();
+  const sim = useSim();
+  const tool = useUI(s => s.tool);
+  useTick(4);
+  const challenge = game.mode === 'challenge';
+  let hint = challenge
+    ? 'Watch for fire. Choose Water (2), then click the flames. Bell (B) warns nearby villagers.'
+    : 'Choose a tool, then click open ground. Try Reclaim land to give the village room to grow.';
+  if (tool === 'water') hint = game.water >= 1
+    ? 'Click the flames to throw a bucket. Two buckets put out a fresh fire.'
+    : `Water refills in ${Math.ceil((1 - game.water) * SEASON.water.recharge)} s. Ring the bell if it is ready.`;
+  else if (tool === 'food') hint = challenge && game.food < 1
+    ? `A basket refills in ${Math.ceil((1 - game.food) * SEASON.food.recharge)} s.`
+    : 'Click open ground near hungry villagers to leave a food basket.';
+  else if (tool === 'erase') hint = 'Click an item you placed to remove it.';
+  else if (tool !== 'select') hint = 'Click clear ground inside the village. Red means this spot is blocked.';
+  else if (challenge && sim.shortage > 0) hint = 'Food shortage: choose Food (3) and leave a basket near hungry villagers.';
+  return <div className="play-guide">
+    <b>{challenge ? 'Survive until the rain' : 'Build, observe, experiment'}</b>
+    <p>{challenge ? 'Keep the village standing and fewer than 3 villagers hurt for 4 minutes.' : 'Rain puts out fires but pauses construction. The meadow adds land and safe refuges.'}</p>
+    <p className="guide-action" role="status">{sim.speed === 0 ? 'Paused. Press Space or choose 1× to continue.' : hint}</p>
+    <small>Space: pause · Drag: orbit · Right-drag: pan · Scroll: zoom</small>
+  </div>;
 }
 
 /** Active state, challenge HUD: time left, how much of the village stands, who is hurt, what is burning. */
@@ -124,9 +153,21 @@ export function EndScreen({ onAgain, onMenu }: { onAgain: () => void; onMenu: ()
   const sim = useSim();
   const backbone = useUI(s => s.backbone);
   const again = useRef<HTMLButtonElement>(null);
-  useEffect(() => again.current?.focus(), []);
+  const [skip, setSkip] = useState(false);
+  useTick(10);
+  const reveal = game.outcome?.result === 'won' && game.victoryTime < 3.5 && !skip;
+  useEffect(() => { if (!reveal) again.current?.focus(); }, [reveal]);
   const o = game.outcome;
   if (!o) return null;
+  if (reveal) return <div className="screen victory-reveal" role="dialog" aria-modal="true" aria-labelledby="rain-title">
+    <div className="panel end won">
+      <p className="kicker">Fire Season survived</p>
+      <h1 id="rain-title">The rains came</h1>
+      <p className="lede">The fires fade. Your village is safe.</p>
+      <button autoFocus className="bar-btn" onClick={() => setSkip(true)}>View results</button>{' '}
+      <SoundButton />
+    </div>
+  </div>;
   const s = sim.stats;
   const rows: [string, string][] = [
     ...(game.mode === 'challenge'
@@ -136,7 +177,7 @@ export function EndScreen({ onAgain, onMenu }: { onAgain: () => void; onMenu: ()
           ['Villagers safe', `${sim.villagers.length - game.injured} of ${sim.villagers.length}`],
         ] as [string, string][])
       : []),
-    ['Fires put out', `${s.firesOut} of ${s.firesStarted}`],
+    [o.result === 'won' ? 'Fires put out before rain' : 'Fires put out', `${s.firesOut} of ${s.firesStarted}`],
     ['Planner', sim.planner?.name ?? backboneLabel(backbone)],
     ['Commands accepted / rejected', `${s.accepted} / ${s.rejected}`],
     ['Mean planner latency', s.plans ? `${(s.planLatencyS / s.plans).toFixed(1)} s over ${s.plans} plans` : '–'],
@@ -154,6 +195,10 @@ export function EndScreen({ onAgain, onMenu }: { onAgain: () => void; onMenu: ()
           </p>
         )}
         {o.result !== 'ended' && <p className="score">Score <b>{o.score.toLocaleString()}</b></p>}
+        {o.result === 'lost' && <p className="retry-tip">{game.injured >= SEASON.maxInjured
+          ? 'Next time: ring the bell early to move residents away from smoke, then water the fire.'
+          : 'Next time: prioritize fires near houses. They damage the village three times faster.'}</p>}
+        <SoundButton />
         <dl className="stats">
           {rows.map(([k, v]) => (
             <div key={k}><dt>{k}</dt><dd>{v}</dd></div>

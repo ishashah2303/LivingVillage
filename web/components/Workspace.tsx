@@ -11,7 +11,7 @@ import { Hud } from './ui/Screens';
  */
 export default function Workspace({ game, phase, onMenu }: { game: Game; phase: Phase; onMenu: () => void }) {
   return (
-    <div className={`app${phase === 'menu' ? ' attract' : ''}`}>
+    <div className={`app${phase === 'menu' ? ' attract' : ''}`} inert={phase !== 'playing'}>
       <TopBar onMenu={onMenu} />
       <Toolbar />
       <main className="stage card" ref={el => { if (el) labelLayer.current = el; }}>

@@ -2,7 +2,7 @@
 import { useFrame, useThree } from '@react-three/fiber';
 import { useMemo, useRef } from 'react';
 import { Color, Fog, type DirectionalLight, type HemisphereLight } from 'three';
-import { useSim } from '../store';
+import { useGame, useSim } from '../store';
 import { clamp } from '@/sim/math';
 import { MAT } from './materials';
 
@@ -17,6 +17,7 @@ const RAIN_SKY = new Color('#879eae');
 /** Sun arc, sky color, fog and night glow, all driven by the simulation clock. */
 export default function DayNight() {
   const sim = useSim();
+  const game = useGame();
   const { scene } = useThree();
   const sun = useRef<DirectionalLight>(null), moon = useRef<DirectionalLight>(null), hemi = useRef<HemisphereLight>(null);
   const tmp = useMemo(
@@ -29,13 +30,14 @@ export default function DayNight() {
   }, [scene]);
 
   useFrame(() => {
+    const raining = sim.rain > 0 || game.outcome?.result === 'won';
     const el = Math.sin(((sim.hour - 6) / 12) * Math.PI);
     // Direct sun only while it is up; sky light lingers after sunset so dusk is not pitch black.
     const sunUp = smooth(-0.04, 0.3, el);
     const ambient = smooth(-0.3, 0.2, el);
     const az = ((sim.hour - 6) / 12) * Math.PI;
     sun.current!.position.set(Math.cos(az) * 42, Math.max(el, 0.08) * 48 + 6, 22);
-    sun.current!.intensity = 2.8 * sunUp * (sim.rain > 0 ? 0.45 : 1);
+    sun.current!.intensity = 2.8 * sunUp * (raining ? 0.45 : 1);
     sun.current!.color.copy(tmp.warm).lerp(tmp.white, smooth(0.05, 0.55, el));
     moon.current!.intensity = 0.6 * (1 - ambient);
     hemi.current!.intensity = 0.5 + 0.8 * ambient;
@@ -44,7 +46,7 @@ export default function DayNight() {
     const { bg } = tmp;
     if (el < 0) bg.copy(NIGHT).lerp(DUSK, smooth(-0.3, 0, el));
     else bg.copy(DUSK).lerp(DAY, smooth(0, 0.45, el));
-    if (sim.rain > 0) bg.lerp(RAIN_SKY, 0.65);
+    if (raining) bg.lerp(RAIN_SKY, 0.65);
     (scene.background as Color).copy(bg);
     (scene.fog as Fog).color.copy(bg);
     MAT.window.emissiveIntensity = (1 - sunUp) * 1.8;

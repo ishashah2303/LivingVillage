@@ -109,6 +109,68 @@ describe('Fire Season', () => {
 });
 
 describe('stability across restarts', () => {
+  it('victory rain clears fires while the score, health and gameplay clock stay final', async () => {
+    const g = await challenge(5);
+    const sim = g.sim;
+    const fire = sim.startFire({ x: 8, z: 8 })!;
+    g.elapsed = SEASON.duration - DT / 2;
+    g.integrity = 80;
+    g.update(DT);
+    expect(g.outcome?.result).toBe('won');
+    expect(fire.alive).toBe(true); // rain has a short arrival beat
+    const final = { outcome: { ...g.outcome }, integrity: g.integrity, health: sim.villagers.map(v => v.health), time: sim.simTime, out: sim.stats.firesOut };
+    for (let i = 0; i < 60; i++) { sim.advance(0.1); g.advancePresentation(0.1); }
+    expect(sim.aliveFires()).toHaveLength(0);
+    expect(fire.fade).toBe(0);
+    expect(fire.obstacle).toBeNull();
+    expect(g.outcome).toEqual(final.outcome);
+    expect(g.integrity).toBe(final.integrity);
+    expect(sim.simTime).toBe(final.time);
+    expect(sim.villagers.map(v => v.health)).toEqual(final.health);
+    expect(sim.stats.firesOut).toBe(final.out); // no points for rain
+    expect(g.useWater(fire)).toBeNull();
+    expect(g.ringAlarm()).toBe(false);
+    expect(g.useFood({ x: 4, z: 4 })).toBeNull();
+    sim.applyPlan({ source: 'local', planner: 'late', commands: [], summary: '' }, sim.worldVersion, sim.simTime);
+    expect(sim.stats.plans).toBe(0);
+    sim.dispose();
+    g.advancePresentation(0.1); // no access to disposed navigation
+    const fresh = await challenge(5);
+    expect(fresh.victoryTime).toBe(0);
+    expect(fresh.sim.ended).toBe(false);
+    expect(fresh.sim.soundCues).toEqual({ water: 0, bell: 0 });
+    fresh.sim.dispose();
+  });
+
+  it('stops a fast frame at defeat and leaves loss/sandbox endings free of victory rain', async () => {
+    const g = await challenge(5);
+    g.sim.startFire({ x: 8, z: 8 });
+    g.integrity = 0;
+    g.sim.speed = 10;
+    g.sim.advance(0.1);
+    expect(g.outcome?.result).toBe('lost');
+    expect(g.sim.simTime).toBeCloseTo(DT);
+    g.advancePresentation(5);
+    expect(g.victoryTime).toBe(0);
+    expect(g.sim.aliveFires()).toHaveLength(1);
+    g.sim.dispose();
+    const s = new Game(await Simulation.create(), 'sandbox');
+    s.end(); s.advancePresentation(5);
+    expect(s.victoryTime).toBe(0);
+    s.sim.dispose();
+  });
+
+  it('only emits tool sound cues when an action succeeds', async () => {
+    const g = await challenge(5);
+    g.useWater({ x: 0, z: 0 }); g.ringAlarm();
+    expect(g.sim.soundCues).toEqual({ water: 0, bell: 0 });
+    const f = g.sim.startFire({ x: 8, z: 8 })!;
+    g.ringAlarm(); g.ringAlarm();
+    g.useWater(f); g.water = 0; g.useWater(f);
+    expect(g.sim.soundCues).toEqual({ water: 1, bell: 1 });
+    g.sim.dispose();
+  });
+
   it('a planner reply that lands after the game was disposed is ignored', async () => {
     const sim = await Simulation.create({ seed: 5 });
     sim.planner = new LocalPlanner();

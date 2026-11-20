@@ -29,6 +29,10 @@ interface UIState {
   plannerOpen: boolean;
   perfOpen: boolean;
   muted: boolean;
+  tutorialOpen: boolean;
+  tutorialSeen: boolean;
+  setTutorialOpen: (open: boolean) => void;
+  finishTutorial: () => void;
   setMuted: (muted: boolean) => void;
   setPhase: (p: Phase) => void;
   setMode: (m: Mode) => void;
@@ -66,6 +70,10 @@ export const useUI = create<UIState>(set => ({
   plannerOpen: false,
   perfOpen: false,
   muted: saved('muted', 'false') === 'true',
+  tutorialOpen: false,
+  tutorialSeen: saved('tutorialSeen', 'false') === 'true',
+  setTutorialOpen: tutorialOpen => set({ tutorialOpen }),
+  finishTutorial: () => (save('tutorialSeen', 'true'), set({ tutorialOpen: false, tutorialSeen: true })),
   setMuted: muted => (save('muted', String(muted)), set({ muted })),
   setPhase: phase => set({ phase }),
   setMode: mode => (save('mode', mode), set({ mode })),

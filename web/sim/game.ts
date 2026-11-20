@@ -16,6 +16,15 @@ import type { Fire, Simulation } from './simulation';
 
 export type Mode = 'challenge' | 'sandbox';
 
+export const SCORE = { integrity: 10, resident: 100, fire: 50, threeStarIntegrity: 60 };
+export interface WaterFeedback {
+  id: number;
+  kind: 'hit' | 'out' | 'miss' | 'empty';
+  x: number;
+  z: number;
+  strength: number;
+}
+
 export interface Outcome {
   result: 'won' | 'lost' | 'ended';
   title: string;
@@ -52,6 +61,8 @@ export class Game {
   integrity = 100;
   /** Fractional charges; a tool is usable at 1 or more. */
   water = SEASON.water.max;
+  waterFeedback: WaterFeedback | null = null;
+  private waterAttempt = 0;
   food = SEASON.food.max;
   alarmIn = 0;
   outcome: Outcome | null = null;
@@ -77,6 +88,13 @@ export class Game {
 
   get injured() {
     return this.sim.villagers.filter(v => v.injured).length;
+  }
+
+  get scoreParts() {
+    const village = Math.round(this.integrity * SCORE.integrity);
+    const residents = (this.sim.villagers.length - this.injured) * SCORE.resident;
+    const fires = this.sim.stats.firesOut * SCORE.fire;
+    return { village, residents, fires, total: village + residents + fires };
   }
 
   advancePresentation(dt: number) {
@@ -144,9 +162,17 @@ export class Game {
   /* ---------------- player tools ---------------- */
 
   useWater(p: V2) {
-    if (this.outcome || this.water < 1) return null;
+    if (this.outcome) return null;
+    const id = ++this.waterAttempt;
+    if (this.water < 1) {
+      this.waterFeedback = { id, kind: 'empty', x: p.x, z: p.z, strength: 0 };
+      return null;
+    }
     const f = this.sim.douseAt(p, SEASON.water.power);
-    if (f) this.water -= 1;
+    if (f) {
+      this.water -= 1;
+      this.waterFeedback = { id, kind: f.alive ? 'hit' : 'out', x: f.x, z: f.z, strength: Math.max(0, f.hp) };
+    } else this.waterFeedback = { id, kind: 'miss', x: p.x, z: p.z, strength: 0 };
     return f;
   }
 
@@ -171,9 +197,8 @@ export class Game {
   }
 
   private finish(result: Outcome['result'], title: string, reason: string) {
-    const safe = this.sim.villagers.length - this.injured;
-    const score = result === 'ended' ? 0 : Math.round(this.integrity * 10 + safe * 100 + this.sim.stats.firesOut * 50);
-    const stars = result !== 'won' ? 0 : this.integrity >= 60 && this.injured === 0 ? 3 : this.integrity >= 30 || this.injured <= 1 ? 2 : 1;
+    const score = result === 'ended' ? 0 : this.scoreParts.total;
+    const stars = result !== 'won' ? 0 : this.integrity >= SCORE.threeStarIntegrity && this.injured === 0 ? 3 : this.integrity >= 30 || this.injured <= 1 ? 2 : 1;
     this.outcome = { result, title, reason, stars, score };
     this.sim.ended = true;
     this.sim.log_(`${result === 'won' ? '🌧' : result === 'lost' ? '💀' : '⏹'} ${title}. ${reason}`, result === 'lost' ? 'alert' : 'info');

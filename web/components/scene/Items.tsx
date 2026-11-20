@@ -1,11 +1,12 @@
 'use client';
 import { useFrame } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AdditiveBlending, Color, InstancedMesh, MeshBasicMaterial, MeshStandardMaterial, NormalBlending, Object3D, SphereGeometry, SpriteMaterial,
   type Group, type PointLight, type Sprite,
 } from 'three';
-import { useSim, useTick } from '../store';
+import { labelLayer, useGame, useSim, useTick, useUI } from '../store';
 import { PLAZA_R } from '@/sim/layout';
 import { FIRE, type Fire, type Food, type Item, type Rock, type Well } from '@/sim/simulation';
 import { MAT, glowTexture } from './materials';
@@ -25,7 +26,11 @@ const FLAMES: [number, number, number, number, number][] = [
 ];
 
 function FireFx({ f }: { f: Fire }) {
+  const game = useGame();
+  const waterSelected = useUI(s => s.tool === 'water' && s.phase === 'playing');
+  useTick(5);
   const flames = useRef<Group>(null), smoke = useRef<Group>(null), embers = useRef<InstancedMesh>(null);
+  const visualFade = useRef(f.fade);
   const halo = useRef<Sprite>(null);
   const glow = useMemo(() => new SpriteMaterial({ map: glowTexture('rgba(255,150,60,1)'), blending: AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.6, toneMapped: false }), []);
   const smokeMats = useMemo(() => {
@@ -33,9 +38,10 @@ function FireFx({ f }: { f: Fire }) {
     return Array.from({ length: PUFFS }, () => new SpriteMaterial({ map: puff, color: '#5f5a55', transparent: true, depthWrite: false }));
   }, []);
   useEffect(() => () => [glow, ...smokeMats].forEach(m => m.dispose()), [glow, smokeMats]);
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, dt) => {
     const t = clock.elapsedTime + f.id * 3.1;
-    const s = f.alive ? 1 : f.fade;
+    visualFade.current = f.alive ? 1 : Math.max(0, visualFade.current - Math.min(dt, 0.1) * 0.8);
+    const s = f.alive ? 0.45 + 0.55 * Math.max(0, f.hp) / FIRE.hp : 0.45 * visualFade.current;
     flames.current!.children.forEach((m, k) => {
       const flick = 0.82 + 0.28 * Math.sin(t * (8 + k * 1.3) + k * 2.1) * Math.sin(t * 3.1 + k);
       m.scale.set(s * (0.85 + 0.15 * Math.sin(t * 7 + k)), s * flick, s * (0.85 + 0.15 * Math.cos(t * 6 + k)));
@@ -63,6 +69,11 @@ function FireFx({ f }: { f: Fire }) {
   });
   return (
     <group position={[f.x, 0, f.z]}>
+      {waterSelected && f.alive && <Html position={[0, 4.2, 0]} center portal={labelLayer} zIndexRange={[19, 0]} style={{ pointerEvents: 'none' }}>
+        <div className="fire-strength">🔥 {Math.ceil(Math.max(0, f.hp))}/{FIRE.hp}
+          <meter aria-label="Fire strength" min={0} max={FIRE.hp} value={Math.max(0, f.hp)} />
+        </div>
+      </Html>}
       <mesh rotation-x={-Math.PI / 2} position-y={0.03}>
         <circleGeometry args={[FIRE.blockRadius, 28]} />
         <meshStandardMaterial color="#2b2520" transparent opacity={0.6} />
@@ -72,7 +83,11 @@ function FireFx({ f }: { f: Fire }) {
           <cylinderGeometry args={[0.12, 0.12, 1.9, 6]} />
         </mesh>
       ))}
-      <group ref={flames}>
+      <group ref={flames} onClick={e => {
+        if (!waterSelected || useUI.getState().tutorialOpen || e.delta > 4 || f.id < 0) return;
+        e.stopPropagation();
+        game.useWater(f);
+      }}>
         {FLAMES.map(([x, z, h, r, m], k) => (
           <mesh key={k} material={flameMats[m]} position={[x, h / 2, z]}>
             <coneGeometry args={[r, h, 7]} />
@@ -224,8 +239,8 @@ function LightPool() {
       l.distance = distance;
     };
     if (sim.festival > 0) use(0, 3, 0, FESTIVAL_LIGHT, 30, 14);
-    // Burning fires first, then fading ones; beyond the pool size a fire keeps its glow sprite only.
-    const fires = sim.items.filter((i): i is Fire => i.kind === 'fire' && (i.alive || i.fade > 0.05)).sort((a, b) => +b.alive - +a.alive);
+    // Extinguished fires stop lighting the village immediately, including while paused.
+    const fires = sim.items.filter((i): i is Fire => i.kind === 'fire' && i.alive);
     for (const f of fires) {
       if (k >= POOL) break;
       const tt = t + f.id * 3.1;
@@ -246,7 +261,7 @@ function LightPool() {
  * Draws one fire out of sight (under the ground) for the first second, so its shaders and textures
  * are compiled while the menu is up instead of freezing the game when the first real fire starts.
  */
-const WARMUP_FIRE = { id: -1, kind: 'fire', x: 0, z: 0, alive: true, fade: 1 } as Fire;
+const WARMUP_FIRE = { id: -1, kind: 'fire', x: 0, z: 0, hp: FIRE.hp, alive: true, fade: 1 } as Fire;
 let warmedUp = false;
 
 function FireWarmup() {

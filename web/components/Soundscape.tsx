@@ -29,10 +29,10 @@ export default function Soundscape({ game }: { game: Game | null }) {
     let water = game.sim.soundCues.water, bell = game.sim.soundCues.bell;
     let outcome = game.outcome;
     const update = () => {
-      const { muted, phase } = useUI.getState();
+      const { muted, phase, tutorialOpen } = useUI.getState();
       const sim = game.sim;
       const won = game.outcome?.result === 'won';
-      const audible = !document.hidden && phase !== 'menu' && (sim.speed > 0 || !!game.outcome);
+      const audible = !tutorialOpen && !document.hidden && phase !== 'menu' && (sim.speed > 0 || !!game.outcome);
       villageSound.mix(muted, audible, won || (!game.outcome && sim.rain > 0), game.outcome ? 0 : sim.aliveFires().length);
       if (audible) {
         if (sim.soundCues.water !== water) villageSound.cue('water');

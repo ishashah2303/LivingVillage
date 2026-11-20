@@ -10,6 +10,7 @@ import { backboneLabel } from '@/sim/plannerClient';
 import { ACTIVITY_LABEL, DT } from '@/sim/simulation';
 import { SoundButton } from '../Soundscape';
 import { PlayGuide } from './Screens';
+import { WaterReadout } from './WaterFeedback';
 import { frameBenchmark, framePerf, frameSetup, StressContext, useGame, useSim, useTick, useUI, type Tool } from '../store';
 
 /** Renders `code` spans for text between backticks (log lines and reasons). */
@@ -55,6 +56,7 @@ export function TopBar({ onMenu }: { onMenu: () => void }) {
       )}
       <button className="bar-btn" onClick={onMenu} title="Back to the start menu (this game is discarded)">Menu</button>
       <SoundButton />
+      {game.mode === 'challenge' && <button className="bar-btn" data-tutorial-trigger onClick={() => useUI.getState().setTutorialOpen(true)}>How to play</button>}
       <details className="keys">
         <summary aria-label="Keyboard and mouse controls" title="Controls">?</summary>
         <dl>
@@ -139,6 +141,7 @@ function ChallengeTools() {
         </button>
       </div>
       <p className="tip">Fires near houses do triple damage. Tomas fights fires on his own; water helps him finish them before they spread.</p>
+      <WaterReadout />
       <PlayGuide />
       <DebugOverlays />
     </aside>

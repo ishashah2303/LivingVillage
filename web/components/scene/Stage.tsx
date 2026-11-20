@@ -15,6 +15,7 @@ import Terrain from './Terrain';
 import Trees from './Trees';
 import Villagers from './Villagers';
 import { LandExpansion, RainShower } from './WorldEvents';
+import WaterSplash from './WaterSplash';
 
 /** Advances the simulation once per rendered frame, before anything reads it. */
 function SimDriver() {
@@ -23,7 +24,7 @@ function SimDriver() {
   useEffect(() => () => frameBenchmark.cancel(), [sim]);
   useFrame(({ gl }, dt) => {
     const t0 = performance.now();
-    sim.advance(dt);
+    if (!useUI.getState().tutorialOpen) sim.advance(dt);
     if (!document.hidden) game.advancePresentation(dt);
     const simMs = performance.now() - t0;
     framePerf.simMs += (simMs - framePerf.simMs) * 0.1;
@@ -150,6 +151,7 @@ export default function Stage() {
         <Cursor />
         <LandExpansion />
         <RainShower />
+        <WaterSplash />
       </group>
       <CameraRig />
       <DebugHandles />

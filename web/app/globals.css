@@ -252,6 +252,26 @@ dl.stats dd { font-variant-numeric: tabular-nums; text-align: right; }
 .play-guide p { margin: 6px 0; }
 .play-guide b { color: var(--moss); }
 .play-guide small { display: block; color: var(--muted); }
+.water-readout { display: grid; gap: 3px; margin: 10px 0; padding: 10px; background: var(--sky-soft); border-radius: 10px; font-size: 12px; flex-basis: 100%; }
+.water-readout b { color: var(--sky); }
+.water-readout p { margin: 4px 0 0; }
+.water-notice { position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); z-index: 22; width: max-content; max-width: calc(100% - 24px); pointer-events: none; text-align: center; }
+.water-notice.shown { padding: 10px 14px; background: var(--panel); border: 2px solid var(--sky); border-radius: 12px; box-shadow: var(--shadow); font-size: 14px; font-weight: 600; }
+.fire-strength { background: #182b36; color: #fff; border: 1px solid #9eeaff; border-radius: 7px; padding: 3px 7px; font-size: 12px; font-weight: 700; white-space: nowrap; pointer-events: none; }
+.fire-strength meter { display: block; width: 65px; height: 8px; }
+.score-guide { font-size: 13px; padding: 10px; margin: 10px 0; background: var(--moss-soft); border-radius: 10px; }
+.score-guide p { margin: 6px 0; }
+.score-guide small, .tutorial .hint { color: var(--muted); }
+.score-details { margin-top: 10px; }
+.score-details summary { cursor: pointer; font-weight: 600; }
+.tutorial .kicker { color: var(--moss); text-transform: uppercase; font-size: 12px; letter-spacing: 0.06em; }
+.tutorial .hint { font-size: 12px; }
+.tutorial-actions { display: flex; gap: 8px; margin-top: 18px; }
+.tutorial-actions .start { width: auto; flex: 1; margin: 0; }
+.water-practice { display: flex; align-items: center; gap: 16px; padding: 16px; margin: 14px 0; border: 1px solid var(--line); border-radius: 12px; }
+.practice-fire { font-size: 48px; }
+.water-practice progress { display: block; width: 100%; accent-color: var(--ember); }
+.water-practice p { margin: 5px 0 0; font-size: 13px; }
 .guide-action { border-top: 1px solid var(--line); padding-top: 6px; }
 .retry-tip { font-size: 13px; color: var(--muted); }
 .victory-reveal { background: transparent; align-items: end; padding-bottom: 5vh; }
@@ -276,6 +296,7 @@ dl.stats dd { font-variant-numeric: tabular-nums; text-align: right; }
 }
 
 @media (max-width: 1300px) {
+  header.top { flex-wrap: wrap; row-gap: 6px; }
   header.top p { display: none; }
   header.top h1 { margin-right: auto; }
 }

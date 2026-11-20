@@ -4,6 +4,7 @@ import { SEASON } from '@/sim/game';
 import { BACKBONES, backboneLabel, type PlannerClient } from '@/sim/plannerClient';
 import { useGame, useSim, useTick, useUI } from '../store';
 import { SoundButton } from '../Soundscape';
+import { ScoreGuide } from './FirstPlayGuide';
 
 const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
@@ -77,6 +78,7 @@ export function Menu({ onStart, planner, ready }: { onStart: () => void; planner
               <li>Tomas the guard fights fires on his own but backs off when the smoke hurts him. Fires near houses do triple damage.</li>
               <li><kbd>Space</kbd> pauses. Drag to orbit, right-drag to pan, scroll to zoom.</li>
             </ul>
+            <ScoreGuide />
           </details>
         )}
 
@@ -112,6 +114,7 @@ export function PlayGuide() {
     <p>{challenge ? 'Keep the village standing and fewer than 3 villagers hurt for 4 minutes.' : 'Rain puts out fires but pauses construction. The meadow adds land and safe refuges.'}</p>
     <p className="guide-action" role="status">{sim.speed === 0 ? 'Paused. Press Space or choose 1× to continue.' : hint}</p>
     <small>Space: pause · Drag: orbit · Right-drag: pan · Scroll: zoom</small>
+    {challenge && <details className="score-details"><summary>Scoring & stars</summary><ScoreGuide /></details>}
   </div>;
 }
 
@@ -175,6 +178,9 @@ export function EndScreen({ onAgain, onMenu }: { onAgain: () => void; onMenu: ()
           ['Time held out', `${mmss(Math.min(game.elapsed, SEASON.duration))} of ${mmss(SEASON.duration)}`],
           ['Village standing', `${Math.ceil(game.integrity)}%`],
           ['Villagers safe', `${sim.villagers.length - game.injured} of ${sim.villagers.length}`],
+          ['Village points', `${game.scoreParts.village}`],
+          ['Resident points', `${game.scoreParts.residents}`],
+          ['Firefighting points', `${game.scoreParts.fires}`],
         ] as [string, string][])
       : []),
     [o.result === 'won' ? 'Fires put out before rain' : 'Fires put out', `${s.firesOut} of ${s.firesStarted}`],

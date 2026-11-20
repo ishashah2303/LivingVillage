@@ -24,7 +24,7 @@ export function Ground() {
   const playing = useUI(s => s.phase === 'playing');
 
   const onClick = (e: ThreeEvent<MouseEvent>) => {
-    if (e.delta > 4 || !playing) return; // a camera drag, or the menu / end screen is up
+    if (e.delta > 4 || !playing || useUI.getState().tutorialOpen) return;
     const p = { x: e.point.x, z: e.point.z };
     if (p.x > sim.bounds.maxX) return;
     switch (tool) {
@@ -61,6 +61,7 @@ export function Ground() {
 /** Placement preview: a ring sized like the obstacle, red where it cannot go. */
 export function Cursor() {
   const sim = useSim();
+  const game = useGame();
   const tool = useUI(s => s.tool);
   const ref = useRef<Mesh>(null);
   useFrame(() => {
@@ -69,7 +70,9 @@ export function Cursor() {
     if (!m.visible) return;
     m.position.set(hover.x, 0.12, hover.z);
     m.scale.setScalar(TOOL_RADIUS[tool]);
-    const ok = tool === 'erase' || (tool === 'water' ? sim.aliveFires().length > 0 : sim.canPlace(hover));
+    const ok = tool === 'erase' || (tool === 'water'
+      ? game.water >= 1 && sim.aliveFires().some(f => dist(f, hover) < FIRE.blockRadius + 1.2)
+      : sim.canPlace(hover));
     (m.material as MeshBasicMaterial).color.set(ok ? TOOL_COLOR[tool] : '#ff2a2a');
   });
   return (

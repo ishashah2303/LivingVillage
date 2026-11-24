@@ -1,28 +1,11 @@
 # Living Village
 
 A generative multi-agent ecosystem: a small 3D village that runs on its own. You watch it, inspect it, and disrupt it.
-Visual Computing course project, Group JJ: Harjeet Singh Chahal (hc1242, group leader) and Isha Nimesh Shah (ins28).
+Visual Computing course project, Group: Harjeet Singh Chahal (hc1242, group leader) and Isha Nimesh Shah (ins28).
 
 **Pillars:** NPC AI / behavior trees · pathfinding and navigation (Recast/Detour) · swarm / boids.
 
-## Status (stage 5: beta)
-
-The beta adds real 8/16/32/64-resident sandbox presets, repeatable performance captures, active evacuation-target revalidation, and physical safe-arrival checks. Large crowds show only the selected resident's label; Fire Season remains at eight residents and now defaults to 40 birds.
-
-**November 11 expansion:** Sandbox now has **Reclaim land** and **Rain shower** events. Volunteers physically build an eastern meadow with 800 m² of new usable ground (+33%) and three planner-visible refuges. Rain weakens fires, suppresses spread and pauses construction. Emergencies and needs take priority over building. See [event controls and validation](docs/world-events.md).
-
-[Play the beta](https://ishashah2303.github.io/LivingVillage/) · [Assignment 5 report](output/pdf/Assignment5_LivingVillage_hc1242_ins28.pdf) · [Validation and known limits](docs/beta-release.md).
-
-### Retained alpha loop
-
-A complete game loop around the stage 3 slice:
-
-- **Start menu** over the live village: pick *Fire Season* (challenge) or *Sandbox*, and the planner's LLM backbone (Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, or rules only).
-- **Fire Season:** hold out 4 minutes until the rains come. A director starts fires faster and faster, unattended fires spread, smoke hurts villagers and a food shortage hits midway. The player has water buckets, food baskets and an alarm bell; the HUD shows time left, village integrity, who is hurt and what is burning. Win when the rains come (1-3 stars); lose at 0% integrity or 3 villagers hurt.
-- **End screen** with the score, fires put out, planner commands accepted / rejected, mean planner latency and LLM cost; *Play again* or *Main menu* (every game gets a fresh simulation; the old navmesh is freed).
-- **Backbone benchmark** (`server/bench/`): the same emergencies, exported from real simulation runs, planned by each model; see `server/bench/results.md`.
-
-### Stage 3 (MVP)
+MVP
 
 A 3D vertical slice on the stack from our proposal:
 
